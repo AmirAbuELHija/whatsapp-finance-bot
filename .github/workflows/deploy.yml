@@ -1,6 +1,7 @@
 name: Deploy
 
-# Runs after CI passes on main, or by hand (also to roll back to an earlier image).
+# After CI passes on main, deploys the image CI built, scanned and pushed (only when the bot's code changed).
+# By hand: rebuild the current commit, or roll back by pasting an earlier image.
 on:
   workflow_run:
     workflows: [CI]
@@ -23,13 +24,44 @@ env:
   IMAGE_REPO: ${{ vars.GCP_IMAGE_REPO }}
 
 jobs:
+  resolve:
+    name: Which image to deploy
+    if: >-
+      vars.GCP_IMAGE_REPO != '' && (github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # read the image digest CI published
+    outputs:
+      image: ${{ steps.pick.outputs.image }}
+    steps:
+      - name: Image from the CI run
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true # no artifact = the bot's code didn't change, nothing to deploy
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: image
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Pick
+        id: pick
+        env:
+          INPUT_IMAGE: ${{ inputs.image }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "image=${INPUT_IMAGE:-build}" >> "$GITHUB_OUTPUT"
+          elif [ -s image.txt ]; then
+            echo "image=$(cat image.txt)" >> "$GITHUB_OUTPUT"
+            echo "Deploying $(cat image.txt)"
+          else
+            echo "::notice::The bot's code didn't change in this merge; nothing to deploy."
+          fi
+
   build:
     name: Build, scan & push
-    # Skipped until infra/bootstrap.sh has created the cloud project and set the repository variables.
-    if: >-
-      vars.GCP_IMAGE_REPO != '' && (
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'workflow_dispatch' && inputs.image == ''))
+    # Only for a manual run without an image: CI already builds and pushes on main.
+    needs: resolve
+    if: needs.resolve.outputs.image == 'build'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,7 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build
@@ -47,16 +79,16 @@ jobs:
         with:
           context: .
           load: true
-          tags: ${{ env.IMAGE_REPO }}:${{ github.event.workflow_run.head_sha || github.sha }}
+          tags: ${{ env.IMAGE_REPO }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || github.sha }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Vulnerability scan (blocks the deploy on fixable HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_REPO }}:${{ github.event.workflow_run.head_sha || github.sha }}
+          image-ref: ${{ env.IMAGE_REPO }}:${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
@@ -68,7 +100,7 @@ jobs:
       - name: Push
         id: push
         run: |
-          tag="${IMAGE_REPO}:${{ github.event.workflow_run.head_sha || github.sha }}"
+          tag="${IMAGE_REPO}:${{ github.sha }}"
           gcloud auth configure-docker "${IMAGE_REPO%%/*}" --quiet
           docker push "$tag"
           # Deploy by digest: exactly the bytes that were scanned.
@@ -76,15 +108,17 @@ jobs:
 
   deploy:
     name: Deploy to the VM
-    needs: build
-    if: always() && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.image != ''))
+    needs: [resolve, build]
+    if: >-
+      always() && needs.resolve.outputs.image != '' &&
+      (needs.resolve.outputs.image != 'build' || needs.build.result == 'success')
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
       id-token: write
     env:
-      IMAGE: ${{ inputs.image || needs.build.outputs.image }}
+      IMAGE: ${{ needs.resolve.outputs.image == 'build' && needs.build.outputs.image || needs.resolve.outputs.image }}
       INSTANCE: ${{ vars.GCP_INSTANCE }}
       ZONE: ${{ vars.GCP_ZONE }}
     steps:

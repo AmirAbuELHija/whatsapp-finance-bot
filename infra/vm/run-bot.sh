@@ -24,6 +24,11 @@ log "Pulling ${image}"
 docker pull --quiet "$image"
 docker rm -f wfb >/dev/null 2>&1 || true
 
+# Keep only the image we are about to run: every deploy pulls a new one, and old ones would slowly fill
+# the 30 GB disk. (Rollbacks pull again from the registry.)
+keep="$(docker image inspect --format '{{.Id}}' "$image")"
+docker images --quiet --no-trunc | sort -u | grep -v "^${keep}$" | xargs -r docker rmi --force >/dev/null 2>&1 || true
+
 log "Starting ${image}"
 exec docker run --rm --name wfb \
   --init \

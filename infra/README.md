@@ -66,9 +66,10 @@ Install on your Mac: `brew install --cask google-cloud-sdk && brew install terra
    ```bash
    infra/upload-session.sh <project-id> auth
    ```
-6. **Deploy**: push to `main`. CI runs, then *Deploy* waits for your approval (GitHub → Actions), builds,
-   scans, pushes, switches the VM to the new image and checks the logs for "WhatsApp connected".
-   If that doesn't appear within 5 minutes it rolls back to the previous image automatically.
+6. **Deploy**: merge a pull request into `main`. CI tests, builds and scans the image once and, if the bot's
+   code changed, pushes it. *Deploy* then waits for your approval (GitHub → Actions), switches the VM to that
+   exact image and checks the logs for a fresh "WhatsApp connected". If it doesn't appear within 5 minutes it
+   rolls back to the previous image automatically. Docs- or infra-only merges don't redeploy the bot.
 
 From now on: open a pull request → checks + Terraform plan as a comment → merge → approve → live.
 
@@ -80,7 +81,7 @@ From now on: open a pull request → checks + Terraform plan as a comment → me
 | Shell on the VM | `gcloud compute ssh wfb-bot --zone us-central1-a --tunnel-through-iap` |
 | Restart the bot | `… --tunnel-through-iap -- sudo systemctl restart whatsapp-bot` |
 | Change settings | edit `.env` → `infra/upload-config.sh <project> .env` → restart |
-| Roll back | Actions → Deploy → Run workflow → paste an earlier `…/bot@sha256:…` |
+| Roll back | Actions → Deploy → Run workflow → paste an earlier `…/bot@sha256:…` (empty = rebuild current `main`) |
 | Gemini quota / models | `… --tunnel-through-iap -- sudo cat /var/lib/wfb/auth/gemini-quota.json` |
 
 ### Link WhatsApp from scratch (no session to move)

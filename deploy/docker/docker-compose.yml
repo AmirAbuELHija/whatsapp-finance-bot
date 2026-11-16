@@ -1,8 +1,9 @@
+# Run from the project root:  docker compose -f deploy/docker/docker-compose.yml up -d
 services:
   bot:
-    build: .
+    build: ../..
     image: whatsapp-finance-bot:latest
-    env_file: .env
+    env_file: ../../.env
     environment:
       AUTH_DIR: /app/auth
     volumes:
