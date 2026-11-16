@@ -37,12 +37,13 @@ jobs:
     outputs:
       image: ${{ steps.push.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/setup-buildx-action@v3
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           load: true
@@ -53,17 +54,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Vulnerability scan (blocks the deploy on fixable HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_REPO }}:${{ github.event.workflow_run.head_sha || github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
       - name: Push
         id: push
         run: |
@@ -87,11 +88,11 @@ jobs:
       INSTANCE: ${{ vars.GCP_INSTANCE }}
       ZONE: ${{ vars.GCP_ZONE }}
     steps:
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
       - name: Point the VM at the new image
         id: switch
         run: |
@@ -101,23 +102,36 @@ jobs:
           echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           echo "Previous: ${previous:-none}"
           echo "New:      ${IMAGE}"
+          if [ "$previous" = "$IMAGE" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::This exact image is already deployed; nothing to switch."
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
           # The VM's deploy watcher sees this change and restarts the bot on the new image (no SSH).
           gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --metadata "bot-image=${IMAGE}"
-      - name: Verify the bot reconnected to WhatsApp
+      - name: Verify the new image started and reconnected to WhatsApp
         id: verify
+        if: steps.switch.outputs.changed == 'true'
         run: |
-          filter="resource.type=\"gce_instance\" AND timestamp>=\"${{ steps.switch.outputs.since }}\" AND (\"WhatsApp connected\" OR \"heartbeat\")"
+          # "WhatsApp connected" is logged only when the bot (re)connects, so one after the switch means the
+          # restart happened. Heartbeats from the old container don't count.
+          since="${{ steps.switch.outputs.since }}"
+          digest="${IMAGE##*@}"
+          base="resource.type=\"gce_instance\" AND timestamp>=\"${since}\""
           for _ in $(seq 1 30); do
             sleep 10
-            if [ -n "$(gcloud logging read "$filter" --limit 1 --format='value(timestamp)')" ]; then
-              echo "✅ The bot is connected on the new image"
+            connected="$(gcloud logging read "${base} AND \"WhatsApp connected\"" --limit 1 --format='value(timestamp)')"
+            if [ -n "$connected" ]; then
+              started="$(gcloud logging read "${base} AND \"${digest}\"" --limit 1 --format='value(timestamp)')"
+              echo "✅ Reconnected to WhatsApp at ${connected}${started:+ (new image started at ${started})}"
               exit 0
             fi
           done
-          echo "::error::No 'WhatsApp connected' log within 5 minutes"
+          echo "::error::The bot did not reconnect to WhatsApp within 5 minutes of the switch"
           exit 1
       - name: Roll back to the previous image
-        if: failure() && steps.switch.outputs.previous != ''
+        if: failure() && steps.switch.outputs.changed == 'true' && steps.switch.outputs.previous != ''
         run: |
           gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" \
             --metadata "bot-image=${{ steps.switch.outputs.previous }}"

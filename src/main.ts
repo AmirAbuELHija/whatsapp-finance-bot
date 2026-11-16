@@ -39,7 +39,13 @@ async function main(): Promise<void> {
   const app = createContainer(config, logger);
   if (!app.video.enabled) logger.info('YouTube summaries are off: add a free GEMINI_API_KEY to .env to turn them on');
   logger.info(
-    { envFile, mainAI: app.providers[0]?.name, backup: app.providers[1]?.name ?? 'none', platform: process.platform },
+    {
+      envFile,
+      image: process.env.BOT_IMAGE,
+      mainAI: app.providers[0]?.name,
+      backup: app.providers[1]?.name ?? 'none',
+      platform: process.platform,
+    },
     'Starting WhatsApp finance bot',
   );
 

@@ -15,7 +15,8 @@ fi
 
 archive="$(mktemp -t wfb-auth.XXXXXX).tar.gz"
 trap 'rm -f "$archive"' EXIT
-tar -czf "$archive" -C "$AUTH" .
+# No macOS metadata (extended attributes) in the archive: Linux tar warns about every file otherwise.
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$archive" -C "$AUTH" . 2>/dev/null || tar -czf "$archive" -C "$AUTH" .
 gcloud storage cp "$archive" "gs://${BUCKET}/auth/latest.tar.gz" --project "$PROJECT_ID"
 echo "✅ Session uploaded. The VM restores it on its next start (only if it has no session yet)."
 echo "   Don't start the bot on this computer again, or both copies will fight over the login."
