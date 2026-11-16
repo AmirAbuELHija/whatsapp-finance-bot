@@ -288,6 +288,21 @@ test('pictures that are too big, unsupported or expired get a clear message and 
   assert.match(sent[2]!.text, /couldn't download that picture/);
 });
 
+// ── Files ────────────────────────────────────────────────────────────────────
+
+test('files the AI creates are sent after the text answer, quoting the question', async () => {
+  const { handler, sent, files, sock } = setup({ ALLOWED_GROUPS: GROUP }, async (_chat, _text, options) => {
+    options?.files?.push({ fileName: 'deck.pptx', mimeType: 'application/x', data: new Uint8Array([1]) });
+    return 'Here are your slides';
+  });
+  await handler.handle(sock, groupMsg({ conversation: '@bot make slides about NVDA' }));
+  assert.equal(sent.length, 1);
+  assert.match(sent[0]!.text, /Here are your slides/);
+  assert.equal(files.length, 1);
+  assert.equal(files[0]!.file.fileName, 'deck.pptx');
+  assert.equal(files[0]!.jid, GROUP);
+});
+
 // ── Commands ─────────────────────────────────────────────────────────────────
 
 test('/news and /summary (languages, presets, caching)', async () => {

@@ -182,6 +182,35 @@ export interface ImageAttachment {
   load(): Promise<Uint8Array>;
 }
 
+/** A file the bot sends back (e.g. a generated document). */
+export interface OutgoingFile {
+  fileName: string;
+  mimeType: string;
+  data: Uint8Array;
+  caption?: string;
+}
+
+export type DocumentFormat = 'docx' | 'pptx';
+
+export interface DocumentSection {
+  heading: string;
+  paragraphs?: string[];
+  bullets?: string[];
+  table?: { headers: string[]; rows: string[][] };
+}
+
+/** What the AI asks for: a Word document or a slide deck, as structured content. */
+export interface DocumentSpec {
+  format: DocumentFormat;
+  title: string;
+  subtitle?: string;
+  sections: DocumentSection[];
+}
+
+export interface DocumentBuilder {
+  build(spec: DocumentSpec): Promise<OutgoingFile>;
+}
+
 /** A platform-neutral incoming message. */
 export interface InboundMessage {
   key: MessageKey;
@@ -203,5 +232,7 @@ export interface ChatTransport {
   readonly selfIds: readonly string[];
   /** Sends a text, quoting `replyTo` when given. Returns the new message id. */
   send(chatId: string, text: string, replyTo?: InboundMessage): Promise<string | null>;
+  /** Sends a file as a document attachment. Returns the new message id. */
+  sendFile(chatId: string, file: OutgoingFile, replyTo?: InboundMessage): Promise<string | null>;
   setTyping(chatId: string, typing: boolean): Promise<void>;
 }

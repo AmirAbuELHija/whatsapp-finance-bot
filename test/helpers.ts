@@ -2,7 +2,7 @@
 import type { FetchLike } from '../src/adapters/http/http-client.js';
 import type { ChatCompletionsClient } from '../src/adapters/llm/openai-provider.js';
 import { loadConfig, type AppConfig } from '../src/config/env.js';
-import type { Logger, MarketData, ToolCall } from '../src/core/types.js';
+import type { Logger, MarketData, ToolCall, OutgoingFile } from '../src/core/types.js';
 import type { RawWhatsAppMessage } from '../src/adapters/whatsapp/message-content.js';
 import type { ChatTransport } from '../src/core/types.js';
 
@@ -87,6 +87,7 @@ export const fakeMarket: MarketData = {
 /** A ChatTransport that records what the bot sends. */
 export function fakeSocket() {
   const sent: { jid: string; text: string; quoted: string | null | undefined; id: string }[] = [];
+  const files: { jid: string; file: OutgoingFile }[] = [];
   let n = 0;
   const sock: ChatTransport = {
     selfIds: ['972500000000:5@s.whatsapp.net', '4242:5@lid'],
@@ -96,8 +97,12 @@ export function fakeSocket() {
       sent.push({ jid, text, quoted: replyTo?.key.id, id });
       return id;
     },
+    sendFile: async (jid, file) => {
+      files.push({ jid, file });
+      return `BOT${++n}`;
+    },
   };
-  return { sock, sent };
+  return { sock, sent, files };
 }
 
 export const ME = '972501111111';

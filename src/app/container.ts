@@ -21,6 +21,7 @@ import { NewsService } from '../adapters/news/news-service.js';
 import { YouTubeVideoService } from '../adapters/youtube/youtube-video-service.js';
 import { ChatAgent } from '../services/agent/chat-agent.js';
 import { buildToolRegistry } from '../services/agent/tool-registry.js';
+import { OfficeDocumentBuilder } from '../adapters/documents/office-document-builder.js';
 import { CommandRouter } from '../services/commands/command-router.js';
 import { ConversationHistory } from '../services/conversation/history.js';
 import { MessageHandler } from '../services/messaging/message-handler.js';
@@ -118,7 +119,7 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
   const providers = buildProviders(config, logger, overrides, gemini);
   const rater = buildRater(config, gemini, logger);
   const history = new ConversationHistory(config.bot.historyTurns);
-  const tools = buildToolRegistry({ market, news, video });
+  const tools = buildToolRegistry({ market, news, video, documents: new OfficeDocumentBuilder() });
   const agent = new ChatAgent({
     providers,
     tools,

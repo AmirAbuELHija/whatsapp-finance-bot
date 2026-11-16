@@ -58,6 +58,22 @@ export const LIMITS = {
   maxImageScore: 6,
 } as const;
 
+/** Word documents and slide decks the bot can create (create_document tool). */
+export const DOCUMENTS = {
+  maxSections: 20,
+  maxItemsPerSection: 12,
+  maxTextChars: 1_200,
+  maxTitleChars: 120,
+  maxTableRows: 25,
+  maxTableColumns: 8,
+  /** Bullets per slide before a section continues on the next slide. */
+  bulletsPerSlide: 7,
+  mimeTypes: {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  },
+} as const;
+
 /** Picture formats Gemini can read. */
 export const IMAGE_MIME_TYPES: readonly string[] = [
   'image/jpeg',
@@ -79,7 +95,8 @@ export const TIMING = {
 } as const;
 
 export const AI = {
-  maxCompletionTokens: 2_048,
+  /** Room for a whole document or deck in one tool call. */
+  maxCompletionTokens: 6_144,
   chatTemperature: 0.2,
   summaryTemperature: 0.3,
   /** HTTP statuses where trying the backup model of the same provider makes sense. */

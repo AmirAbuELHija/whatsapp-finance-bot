@@ -6,7 +6,15 @@ import { LIMITS } from '../../config/constants.js';
 import { HISTORY_RANGES } from '../../config/reference-data.js';
 import { messageOf } from '../../core/errors.js';
 import * as calc from '../../core/finance/calculators.js';
-import type { MarketData, NewsSource, ToolSchema, VideoAnalyzer } from '../../core/types.js';
+import type {
+  DocumentBuilder,
+  DocumentSpec,
+  MarketData,
+  NewsSource,
+  OutgoingFile,
+  ToolSchema,
+  VideoAnalyzer,
+} from '../../core/types.js';
 
 export const TOOL = {
   quote: 'get_quote',
@@ -19,7 +27,13 @@ export const TOOL = {
   goal: 'savings_goal',
   cagr: 'cagr',
   budget: 'budget_50_30_20',
+  document: 'create_document',
 } as const;
+
+/** Per-request context: files a tool creates are collected here and sent after the answer. */
+export interface ToolContext {
+  files: OutgoingFile[];
+}
 
 type Args = Record<string, unknown>;
 
@@ -27,14 +41,14 @@ interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
-  run(args: Args): unknown;
+  run(args: Args, context: ToolContext): unknown;
 }
 
 export interface ToolRegistry {
   readonly names: readonly string[];
   readonly schemas: readonly ToolSchema[];
   /** Runs a tool. Failures are returned as { error } so the AI can explain them. */
-  call(name: string, args: Args): Promise<unknown>;
+  call(name: string, args: Args, context?: ToolContext): Promise<unknown>;
 }
 
 const numberParam = (description: string) => ({ type: 'number', description });
@@ -49,9 +63,12 @@ export interface ToolDependencies {
   market: MarketData;
   news?: NewsSource | undefined;
   video?: VideoAnalyzer | undefined;
+  documents?: DocumentBuilder | undefined;
 }
 
-export function buildToolRegistry({ market, news, video }: ToolDependencies): ToolRegistry {
+const textList = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
+
+export function buildToolRegistry({ market, news, video, documents }: ToolDependencies): ToolRegistry {
   const definitions: ToolDefinition[] = [
     {
       name: TOOL.quote,
@@ -229,6 +246,56 @@ export function buildToolRegistry({ market, news, video }: ToolDependencies): To
     });
   }
 
+  if (documents)
+    definitions.push({
+      name: TOOL.document,
+      description:
+        'Creates a file and sends it to the chat: format "pptx" for slides / a presentation / a deck, "docx" for a ' +
+        'document / report / Word file (also when PDF is asked: send docx and say it can be saved as PDF). Write the ' +
+        'full content yourself; get live numbers with the other tools first. Slides: short bullets, one idea each.',
+      parameters: {
+        type: 'object',
+        properties: {
+          format: { type: 'string', enum: ['pptx', 'docx'] },
+          title: { type: 'string' },
+          subtitle: { type: 'string' },
+          sections: {
+            type: 'array',
+            description: 'In order. For slides, one section per slide.',
+            items: {
+              type: 'object',
+              properties: {
+                heading: { type: 'string' },
+                paragraphs: textList('Full sentences (documents)'),
+                bullets: textList('Short points'),
+                table: {
+                  type: 'object',
+                  properties: {
+                    headers: { type: 'array', items: { type: 'string' } },
+                    rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+                  },
+                  required: ['headers', 'rows'],
+                },
+              },
+              required: ['heading'],
+            },
+          },
+        },
+        required: ['format', 'title', 'sections'],
+      },
+      run: async (args, context) => {
+        const format = args.format === 'docx' ? 'docx' : 'pptx';
+        const file = await documents.build({ ...(args as unknown as DocumentSpec), format });
+        context.files.push(file);
+        return {
+          created: file.fileName,
+          format,
+          bytes: file.data.byteLength,
+          note: 'The file will be sent to the chat.',
+        };
+      },
+    });
+
   const byName = new Map(definitions.map((d) => [d.name, d]));
   return {
     names: definitions.map((d) => d.name),
@@ -236,11 +303,11 @@ export function buildToolRegistry({ market, news, video }: ToolDependencies): To
       type: 'function' as const,
       function: { name, description, parameters },
     })),
-    async call(name, args) {
+    async call(name, args, context = { files: [] }) {
       const definition = byName.get(name);
       if (!definition) return { error: `Unknown tool "${name}"` };
       try {
-        return await definition.run(args);
+        return await definition.run(args, context);
       } catch (error) {
         return { error: messageOf(error) };
       }

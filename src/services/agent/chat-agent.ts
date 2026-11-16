@@ -12,11 +12,12 @@ import type {
   ImageInput,
   Logger,
   NewsItem,
+  OutgoingFile,
   ToolCall,
   ToolChoice,
 } from '../../core/types.js';
 import type { ConversationHistory } from '../conversation/history.js';
-import type { ToolRegistry } from './tool-registry.js';
+import { TOOL, type ToolRegistry } from './tool-registry.js';
 
 export interface ChatAgentOptions {
   providers: readonly ChatProvider[];
@@ -39,6 +40,8 @@ export interface AskOptions {
   forceTool?: string | undefined;
   /** Pictures sent with the question (only Gemini can see them). */
   images?: ImageInput[] | undefined;
+  /** Files created by tools (documents, slides) are added here; the caller sends them. */
+  files?: OutgoingFile[] | undefined;
 }
 
 const parseArgs = (raw: string): Record<string, unknown> | null => {
@@ -60,7 +63,11 @@ export class ChatAgent {
     this.now = options.now ?? (() => new Date());
   }
 
-  async ask(chatId: string, text: string, { senderName, forceTool, images = [] }: AskOptions = {}): Promise<string> {
+  async ask(
+    chatId: string,
+    text: string,
+    { senderName, forceTool, images = [], files = [] }: AskOptions = {},
+  ): Promise<string> {
     const { tools, history, maxToolSteps, logger } = this.options;
     const rated = await (this.options.rater ?? new HeuristicRater()).rate(text);
     // A picture goes to Flash with low thinking: capable enough, and fast (high thinking on pictures times out).
@@ -102,7 +109,7 @@ export class ChatAgent {
         break;
       }
       messages.push({ role: 'assistant', content: message.content ?? '', tool_calls: calls });
-      const results = await Promise.all(calls.map((call) => this.runTool(call)));
+      const results = await Promise.all(calls.map((call) => this.runTool(call, files)));
       calls.forEach((call, i) => {
         const result = results[i];
         if (result && typeof result === 'object' && 'error' in result)
@@ -180,11 +187,13 @@ export class ChatAgent {
     });
   }
 
-  private async runTool(call: ToolCall): Promise<unknown> {
+  private async runTool(call: ToolCall, files: OutgoingFile[]): Promise<unknown> {
     const args = parseArgs(call.function.arguments);
     if (!args) return { error: 'Tool arguments were not valid JSON' };
-    this.options.logger?.info({ tool: call.function.name, args }, 'tool call');
-    return this.options.tools.call(call.function.name, args);
+    // Document content can be long: log only its shape.
+    const logged = call.function.name === TOOL.document ? { title: args.title, format: args.format } : args;
+    this.options.logger?.info({ tool: call.function.name, args: logged }, 'tool call');
+    return this.options.tools.call(call.function.name, args, { files });
   }
 
   /** Main AI first, then the backups. */
