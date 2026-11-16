@@ -1,0 +1,49 @@
+{
+  "name": "whatsapp-finance-bot",
+  "version": "2.0.0",
+  "description": "WhatsApp AI assistant for finance groups: answers @bot messages with Gemini/Groq, live market data, news and YouTube summaries",
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prestart": "npm run build",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "check": "tsx scripts/check.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "baileys": "^7.0.0-rc14",
+    "openai": "^7.57.0",
+    "pino": "^10.4.0",
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "@types/qrcode-terminal": "^0.12.2",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.2"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
+  }
+}

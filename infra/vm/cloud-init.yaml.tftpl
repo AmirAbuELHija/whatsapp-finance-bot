@@ -1,0 +1,85 @@
+#cloud-config
+# Container-Optimized OS applies this on every boot (/etc is rebuilt each time); state lives in /var/lib/wfb.
+
+write_files:
+  - path: /etc/wfb/config
+    permissions: "0644"
+    content: |
+      PROJECT_ID=${project_id}
+      SECRET_NAME=${secret_name}
+      BUCKET=${bucket}
+      REGISTRY_HOST=${registry_host}
+
+%{ for name, body in files }
+  - path: /etc/wfb/${name}
+    permissions: "0755"
+    content: |
+      ${indent(6, body)}
+%{ endfor }
+
+  - path: /etc/systemd/system/whatsapp-bot.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=WhatsApp finance bot
+      Wants=network-online.target docker.service
+      After=network-online.target docker.service
+      StartLimitIntervalSec=0
+
+      [Service]
+      ExecStart=/bin/bash /etc/wfb/run-bot.sh
+      ExecStop=/usr/bin/docker stop --time 20 wfb
+      ExecStopPost=-/bin/bash /etc/wfb/backup-auth.sh
+      Restart=always
+      RestartSec=20
+      # 75 = nothing deployed yet (the deploy watcher starts it); 3 = needs a person (logged out / other copy running)
+      RestartPreventExitStatus=75 3
+      TimeoutStartSec=600
+      TimeoutStopSec=45
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/wfb-deploy-watcher.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Restart the WhatsApp bot when a new image is deployed
+      After=network-online.target
+
+      [Service]
+      ExecStart=/bin/bash /etc/wfb/deploy-watcher.sh
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/wfb-backup.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Back up the WhatsApp session to Cloud Storage
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash /etc/wfb/backup-auth.sh
+
+  - path: /etc/systemd/system/wfb-backup.timer
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Back up the WhatsApp session every 6 hours
+
+      [Timer]
+      OnBootSec=15min
+      OnUnitActiveSec=6h
+      RandomizedDelaySec=10min
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now wfb-deploy-watcher.service wfb-backup.timer
+  - systemctl start whatsapp-bot.service

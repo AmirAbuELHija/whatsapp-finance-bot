@@ -1,0 +1,22 @@
+services:
+  bot:
+    build: .
+    image: whatsapp-finance-bot:latest
+    env_file: .env
+    environment:
+      AUTH_DIR: /app/auth
+    volumes:
+      - wa-auth:/app/auth
+    restart: unless-stopped
+    init: true
+    # Hardening: nothing here needs to write outside the auth volume or gain privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  wa-auth:

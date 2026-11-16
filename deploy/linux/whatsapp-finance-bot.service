@@ -1,0 +1,36 @@
+# systemd service for a Linux server (Ubuntu, Debian, Oracle Cloud...).
+# Install (adjust paths and the user):
+#   sudo cp deploy/linux/whatsapp-finance-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now whatsapp-finance-bot
+#   journalctl -u whatsapp-finance-bot -f        # logs (shows the QR / pairing code on first run)
+
+[Unit]
+Description=WhatsApp finance bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/whatsapp-finance-bot
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=5
+# Exit code 3 = logged out of WhatsApp or another copy is running: needs a person, so no restart loop.
+RestartPreventExitStatus=3
+Environment=NODE_ENV=production
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/whatsapp-finance-bot/auth
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
