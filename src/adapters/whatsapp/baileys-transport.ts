@@ -18,16 +18,12 @@ export class BaileysTransport implements ChatTransport {
 
   async sendFile(chatId: string, file: OutgoingFile, replyTo?: InboundMessage): Promise<string | null> {
     const quoted = replyTo?.raw as WAMessage | undefined;
-    const sent = await this.sock.sendMessage(
-      chatId,
-      {
-        document: Buffer.from(file.data),
-        mimetype: file.mimeType,
-        fileName: file.fileName,
-        ...(file.caption ? { caption: file.caption } : {}),
-      },
-      quoted ? { quoted } : undefined,
-    );
+    const caption = file.caption ? { caption: file.caption } : {};
+    // Pictures show inline in the chat; everything else arrives as a downloadable document.
+    const content = file.mimeType.startsWith('image/')
+      ? { image: Buffer.from(file.data), mimetype: file.mimeType, ...caption }
+      : { document: Buffer.from(file.data), mimetype: file.mimeType, fileName: file.fileName, ...caption };
+    const sent = await this.sock.sendMessage(chatId, content, quoted ? { quoted } : undefined);
     return sent?.key.id ?? null;
   }
 

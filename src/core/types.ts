@@ -101,7 +101,14 @@ export interface PriceHistory {
   maxDrawdownPct: number | null;
   annualizedVolatilityPct: number | null;
   bars: number;
+  /** Closing prices for charts (downsampled). Not sent to the AI. */
+  points?: PricePoint[];
   source: string;
+}
+
+export interface PricePoint {
+  date: string;
+  close: number;
 }
 
 export interface Conversion {
@@ -192,8 +199,15 @@ export interface OutgoingFile {
 
 export type DocumentFormat = 'docx' | 'pptx';
 
+/** A line chart: closing prices over time. */
+export interface ChartSeries {
+  title: string;
+  points: PricePoint[];
+}
+
 export interface DocumentSection {
   heading: string;
+  chart?: ChartSeries;
   paragraphs?: string[];
   bullets?: string[];
   table?: { headers: string[]; rows: string[][] };
@@ -205,6 +219,62 @@ export interface DocumentSpec {
   title: string;
   subtitle?: string;
   sections: DocumentSection[];
+}
+
+// ── Market summary deck ──────────────────────────────────────────────────────
+
+/** One instrument on the summary slides (all numbers from market data). */
+export interface SnapshotItem {
+  symbol: string;
+  label: string;
+  price: number | null;
+  changePct: number | null;
+  change: number | null;
+  currency: string | null;
+}
+
+/** Live numbers for "@bot summary", fetched in one go. Missing instruments are simply left out. */
+export interface MarketSnapshot {
+  takenAt: Date;
+  indexes: SnapshotItem[];
+  vix: SnapshotItem | null;
+  sectors: SnapshotItem[];
+  movers: SnapshotItem[];
+  assets: SnapshotItem[];
+  trend: { label: string; points: PricePoint[]; fromHighPct: number | null; high: number | null } | null;
+}
+
+/** The words on the summary slides, written by the AI from the snapshot and the latest headlines. */
+export interface MarketStory {
+  headline: string;
+  accent: string;
+  subtitle: string;
+  causes: string[];
+  effect: string;
+  result: string;
+  news: { title: string; detail: string }[];
+  nextUp: string[];
+}
+
+/** Everything a stock report card shows. Numbers come from market data; highlights are written by the AI. */
+export interface StockReport {
+  quote: Quote;
+  history: PriceHistory;
+  highlights: string[];
+  generatedAt: Date;
+  timeZone: string;
+}
+
+export interface ReportRenderer {
+  /** A designed PNG report card for one stock. */
+  stockCard(report: StockReport): Promise<OutgoingFile>;
+  /** A plain PNG line chart (for Word documents). */
+  chartPng(chart: ChartSeries, width: number, height: number): Uint8Array;
+}
+
+export interface SummaryRenderer {
+  /** The two dashboard slides as PNG images. */
+  summarySlides(snapshot: MarketSnapshot, story: MarketStory, timeZone: string): OutgoingFile[];
 }
 
 export interface DocumentBuilder {

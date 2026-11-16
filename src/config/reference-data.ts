@@ -139,3 +139,60 @@ export const LANGUAGE_WORDS: Readonly<Record<string, string>> = {
   بالعربي: 'Arabic',
   بالعربية: 'Arabic',
 };
+
+/** What "@bot summary" shows. Yahoo symbols; labels as printed on the slides. */
+export const SUMMARY = {
+  indexes: [
+    { symbol: '^IXIC', label: 'Nasdaq Composite' },
+    { symbol: '^GSPC', label: 'S&P 500' },
+    { symbol: '^DJI', label: 'Dow Jones' },
+  ],
+  vix: { symbol: '^VIX', label: 'VIX' },
+  /** Select Sector SPDR ETFs: the day's move of each S&P 500 sector. */
+  sectors: [
+    { symbol: 'XLK', label: 'Tech' },
+    { symbol: 'XLC', label: 'Communication' },
+    { symbol: 'XLY', label: 'Discretionary' },
+    { symbol: 'XLF', label: 'Financials' },
+    { symbol: 'XLV', label: 'Health care' },
+    { symbol: 'XLI', label: 'Industrials' },
+    { symbol: 'XLE', label: 'Energy' },
+    { symbol: 'XLB', label: 'Materials' },
+    { symbol: 'XLRE', label: 'Real estate' },
+    { symbol: 'XLU', label: 'Utilities' },
+    { symbol: 'XLP', label: 'Staples' },
+  ],
+  /** Default watchlist for "biggest moves" (SUMMARY_WATCHLIST overrides it). */
+  watchlist: [
+    'NVDA',
+    'AAPL',
+    'MSFT',
+    'AMZN',
+    'GOOGL',
+    'META',
+    'TSLA',
+    'AVGO',
+    'AMD',
+    'NFLX',
+    'PLTR',
+    'INTC',
+    'MU',
+    'ORCL',
+    'JPM',
+    'LLY',
+    'COST',
+    'XOM',
+    'TEVA',
+    'COIN',
+  ],
+  assets: [
+    { symbol: 'CL=F', label: 'Oil (WTI)' },
+    { symbol: 'GC=F', label: 'Gold' },
+    { symbol: 'BTC-USD', label: 'Bitcoin' },
+    { symbol: '^TNX', label: '10-yr yield' },
+    { symbol: 'USDILS=X', label: 'USD/ILS' },
+  ],
+  trend: { symbol: '^IXIC', label: 'Nasdaq', range: '6mo' },
+  /** Parallel requests to the market-data source. */
+  concurrency: 8,
+} as const;

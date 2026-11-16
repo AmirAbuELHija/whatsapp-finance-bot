@@ -22,7 +22,9 @@ import { YouTubeVideoService } from '../adapters/youtube/youtube-video-service.j
 import { ChatAgent } from '../services/agent/chat-agent.js';
 import { buildToolRegistry } from '../services/agent/tool-registry.js';
 import { OfficeDocumentBuilder } from '../adapters/documents/office-document-builder.js';
+import { StockReportRenderer } from '../adapters/reports/stock-report-renderer.js';
 import { CommandRouter } from '../services/commands/command-router.js';
+import { MarketSummaryService } from '../services/summary/market-summary.js';
 import { ConversationHistory } from '../services/conversation/history.js';
 import { MessageHandler } from '../services/messaging/message-handler.js';
 import { RateLimiter } from '../services/security/rate-limiter.js';
@@ -119,7 +121,15 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
   const providers = buildProviders(config, logger, overrides, gemini);
   const rater = buildRater(config, gemini, logger);
   const history = new ConversationHistory(config.bot.historyTurns);
-  const tools = buildToolRegistry({ market, news, video, documents: new OfficeDocumentBuilder() });
+  const reports = new StockReportRenderer();
+  const tools = buildToolRegistry({
+    market,
+    news,
+    video,
+    reports,
+    documents: new OfficeDocumentBuilder(reports),
+    timezone: config.bot.timezone,
+  });
   const agent = new ChatAgent({
     providers,
     tools,
@@ -136,6 +146,14 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
     news,
     history,
     summarizer: agent,
+    dashboard: new MarketSummaryService({
+      market,
+      news,
+      writer: agent,
+      renderer: reports,
+      timeZone: config.bot.timezone,
+    }),
+    logger,
     timezone: config.bot.timezone,
     summaryLanguage: config.bot.summaryLanguage,
     dmWithoutTrigger: config.access.dmWithoutTrigger,

@@ -94,6 +94,14 @@ function barsOf(result: ChartResult): Bar[] {
   });
 }
 
+/** At most LIMITS.chartPoints evenly spaced bars, always keeping the last one. */
+function downsample(bars: Bar[]): Bar[] {
+  const max = LIMITS.chartPoints;
+  if (bars.length <= max) return bars;
+  const step = (bars.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => bars[Math.round(i * step)]).filter((b): b is Bar => b !== undefined);
+}
+
 export function isHistoryRange(value: string): value is HistoryRange {
   return Object.hasOwn(HISTORY_RANGES, value);
 }
@@ -161,6 +169,10 @@ export class YahooMarketData implements MarketData {
       maxDrawdownPct: round(maxDrawdown(closes) * 100, 2),
       annualizedVolatilityPct: interval === '1d' ? annualizedVolatility(closes) : null,
       bars: bars.length,
+      points: downsample(bars).map((b) => ({
+        date: new Date(b.t * 1000).toISOString().slice(0, 10),
+        close: price(b.c * factor) ?? b.c * factor,
+      })),
       source: SOURCES.history,
     };
   }

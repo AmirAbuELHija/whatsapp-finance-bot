@@ -7,8 +7,11 @@ import { HISTORY_RANGES } from '../../config/reference-data.js';
 import { messageOf } from '../../core/errors.js';
 import * as calc from '../../core/finance/calculators.js';
 import type {
+  ChartSeries,
   DocumentBuilder,
+  DocumentSection,
   DocumentSpec,
+  ReportRenderer,
   MarketData,
   NewsSource,
   OutgoingFile,
@@ -28,6 +31,7 @@ export const TOOL = {
   cagr: 'cagr',
   budget: 'budget_50_30_20',
   document: 'create_document',
+  report: 'stock_report',
 } as const;
 
 /** Per-request context: files a tool creates are collected here and sent after the answer. */
@@ -64,11 +68,28 @@ export interface ToolDependencies {
   news?: NewsSource | undefined;
   video?: VideoAnalyzer | undefined;
   documents?: DocumentBuilder | undefined;
+  reports?: ReportRenderer | undefined;
+  /** For dates printed on reports. */
+  timezone?: string | undefined;
+  now?: () => Date;
 }
 
 const textList = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
 
-export function buildToolRegistry({ market, news, video, documents }: ToolDependencies): ToolRegistry {
+export function buildToolRegistry({
+  market,
+  news,
+  video,
+  documents,
+  reports,
+  timezone = 'UTC',
+  now = () => new Date(),
+}: ToolDependencies): ToolRegistry {
+  /** A price chart for a symbol, from market data (never from the AI). */
+  const chartFor = async (symbol: string, range?: string): Promise<ChartSeries> => {
+    const history = await market.getHistory(symbol, range);
+    return { title: `${history.name} (${history.symbol}) · ${history.range}`, points: history.points ?? [] };
+  };
   const definitions: ToolDefinition[] = [
     {
       name: TOOL.quote,
@@ -102,7 +123,14 @@ export function buildToolRegistry({ market, news, video, documents }: ToolDepend
         },
         required: ['symbol'],
       },
-      run: ({ symbol, range }) => market.getHistory(str(symbol), range == null ? undefined : str(range)),
+      run: async ({ symbol, range }) => {
+        // Chart points are for pictures and slides; the AI only needs the numbers.
+        const { points: _points, ...history } = await market.getHistory(
+          str(symbol),
+          range == null ? undefined : str(range),
+        );
+        return history;
+      },
     },
     {
       name: TOOL.convert,
@@ -266,6 +294,12 @@ export function buildToolRegistry({ market, news, video, documents }: ToolDepend
               type: 'object',
               properties: {
                 heading: { type: 'string' },
+                chart_symbol: { type: 'string', description: 'Optional: add a price chart of this symbol (real data)' },
+                chart_range: {
+                  type: 'string',
+                  enum: Object.keys(HISTORY_RANGES),
+                  description: 'Chart period, default 1mo',
+                },
                 paragraphs: textList('Full sentences (documents)'),
                 bullets: textList('Short points'),
                 table: {
@@ -285,13 +319,97 @@ export function buildToolRegistry({ market, news, video, documents }: ToolDepend
       },
       run: async (args, context) => {
         const format = args.format === 'docx' ? 'docx' : 'pptx';
-        const file = await documents.build({ ...(args as unknown as DocumentSpec), format });
+        const raw = Array.isArray(args.sections) ? (args.sections as (DocumentSection & Args)[]) : [];
+        const sections = await Promise.all(
+          raw.map(async ({ chart_symbol, chart_range, ...section }) =>
+            typeof chart_symbol === 'string' && chart_symbol
+              ? {
+                  ...section,
+                  chart: await chartFor(chart_symbol, typeof chart_range === 'string' ? chart_range : undefined),
+                }
+              : section,
+          ),
+        );
+        const file = await documents.build({ ...(args as unknown as DocumentSpec), format, sections });
         context.files.push(file);
         return {
           created: file.fileName,
           format,
           bytes: file.data.byteLength,
           note: 'The file will be sent to the chat.',
+        };
+      },
+    });
+
+  if (reports)
+    definitions.push({
+      name: TOOL.report,
+      description:
+        "Sends a designed stock report: price, today's change, a price chart, key stats and your highlights. " +
+        'format "image" (default) shows as a picture in the chat; "pptx"/"docx" sends slides or a document. ' +
+        "Read the news first (get_news) and pass 2-5 short highlights in the user's language. One symbol per call.",
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string' },
+          range: { type: 'string', enum: Object.keys(HISTORY_RANGES), description: 'Chart period, default 3mo' },
+          highlights: textList('2-5 short news/analysis points, one line each'),
+          format: { type: 'string', enum: ['image', 'pptx', 'docx'] },
+        },
+        required: ['symbol'],
+      },
+      run: async (args, context) => {
+        const symbol = str(args.symbol);
+        const range = typeof args.range === 'string' ? args.range : '3mo';
+        const [quote, history] = await Promise.all([market.getQuote(symbol), market.getHistory(symbol, range)]);
+        const highlights = (Array.isArray(args.highlights) ? args.highlights : [])
+          .filter((h): h is string => typeof h === 'string' && h.trim() !== '')
+          .slice(0, 5);
+        const format = args.format === 'pptx' || args.format === 'docx' ? args.format : 'image';
+        let file;
+        if (format === 'image' || !documents) {
+          file = await reports.stockCard({ quote, history, highlights, generatedAt: now(), timeZone: timezone });
+        } else {
+          const name = quote.name || quote.symbol;
+          const pct = (v: number | null) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`);
+          file = await documents.build({
+            format,
+            title: `${name} (${quote.symbol})`,
+            subtitle: `Stock report · ${now().toLocaleDateString('en-GB', { timeZone: timezone, dateStyle: 'medium' })}`,
+            sections: [
+              {
+                heading: `Price · ${history.range}`,
+                chart: { title: `${quote.symbol} · ${history.range}`, points: history.points ?? [] },
+                bullets: [
+                  `Price ${quote.price ?? '—'} ${quote.currency ?? ''} (${pct(quote.changePct)} today)`,
+                  `${history.range}: ${pct(history.changePct)}, high ${history.high ?? '—'}, low ${history.low ?? '—'}`,
+                ],
+              },
+              {
+                heading: 'Key numbers',
+                table: {
+                  headers: ['Metric', 'Value'],
+                  rows: [
+                    ['Day range', `${quote.dayLow ?? '—'} – ${quote.dayHigh ?? '—'}`],
+                    ['52-week range', `${quote.fiftyTwoWeekLow ?? '—'} – ${quote.fiftyTwoWeekHigh ?? '—'}`],
+                    [`${history.range} change`, pct(history.changePct)],
+                    ['Max drawdown', pct(history.maxDrawdownPct == null ? null : -Math.abs(history.maxDrawdownPct))],
+                    ['Volatility (annualized)', pct(history.annualizedVolatilityPct)],
+                  ],
+                },
+              },
+              ...(highlights.length ? [{ heading: 'Highlights', bullets: highlights }] : []),
+            ],
+          });
+        }
+        context.files.push(file);
+        return {
+          created: file.fileName,
+          format,
+          price: quote.price,
+          changePctToday: quote.changePct,
+          periodChangePct: history.changePct,
+          note: 'The report will be sent to the chat; just add one short sentence.',
         };
       },
     });

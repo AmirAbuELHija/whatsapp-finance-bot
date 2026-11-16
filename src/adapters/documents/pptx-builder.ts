@@ -9,7 +9,14 @@ type PptxCtor = typeof pptxgenModule.default;
 const PptxGenJS =
   (pptxgenModule as unknown as { default?: PptxCtor }).default ?? (pptxgenModule as unknown as PptxCtor);
 
-const THEME = { accent: '1F6FEB', dark: '1F2328', muted: '59636E', font: 'Arial' } as const;
+const THEME = {
+  accent: '1F6FEB',
+  dark: '1F2328',
+  muted: '59636E',
+  up: '1A7F37',
+  down: 'CF222E',
+  font: 'Arial',
+} as const;
 const W = 13.33; // LAYOUT_WIDE, inches
 
 const align = (value: string): 'left' | 'right' => (isRtl(value) ? 'right' : 'left');
@@ -17,6 +24,21 @@ const align = (value: string): 'left' | 'right' => (isRtl(value) ? 'right' : 'le
 /** Splits long sections so no slide gets more than a readable number of lines. */
 function slidesFor(section: DocumentSection): DocumentSection[] {
   const lines = [...(section.paragraphs ?? []), ...(section.bullets ?? [])];
+  // A chart slide keeps a few points under the chart; the rest continue on the next slide.
+  if (section.chart) {
+    const keep = DOCUMENTS.bulletsUnderChart;
+    const rest = lines.slice(keep);
+    return [
+      { heading: section.heading, chart: section.chart, bullets: lines.slice(0, keep) },
+      ...(rest.length || section.table
+        ? slidesFor({
+            heading: `${section.heading} (cont.)`,
+            bullets: rest,
+            ...(section.table ? { table: section.table } : {}),
+          })
+        : []),
+    ];
+  }
   if (lines.length <= DOCUMENTS.bulletsPerSlide) return [section];
   const pages: DocumentSection[] = [];
   for (let i = 0; i < lines.length; i += DOCUMENTS.bulletsPerSlide) {
@@ -87,6 +109,37 @@ export async function buildPptx(spec: DocumentSpec): Promise<OutgoingFile> {
       rtlMode: rtl,
     });
     const lines = [...(page.paragraphs ?? []), ...(page.bullets ?? [])];
+    let bodyY = 1.45;
+    let bodyH = 5.4;
+    if (page.chart && page.chart.points.length > 1) {
+      const points = page.chart.points;
+      const up = (points.at(-1)?.close ?? 0) >= (points[0]?.close ?? 0);
+      slide.addChart(
+        pptx.ChartType.line,
+        [{ name: page.chart.title, labels: points.map((p) => p.date), values: points.map((p) => p.close) }],
+        {
+          x: 0.6,
+          y: 1.35,
+          w: W - 1.2,
+          h: lines.length ? 3.9 : 5.6,
+          chartColors: [up ? THEME.up : THEME.down],
+          lineSize: 2,
+          lineDataSymbol: 'none',
+          showLegend: false,
+          showTitle: true,
+          title: page.chart.title,
+          titleFontSize: 14,
+          titleColor: THEME.muted,
+          catAxisLabelFontSize: 10,
+          catAxisLabelFrequency: String(Math.max(1, Math.ceil(points.length / 8))),
+          valAxisLabelFontSize: 10,
+          valGridLine: { color: 'E1E4E8', size: 0.5 },
+          catGridLine: { style: 'none' },
+        },
+      );
+      bodyY = 5.35;
+      bodyH = 1.9;
+    }
     if (lines.length)
       slide.addText(
         lines.map((line) => ({
@@ -95,11 +148,11 @@ export async function buildPptx(spec: DocumentSpec): Promise<OutgoingFile> {
         })),
         {
           x: 0.8,
-          y: 1.45,
+          y: bodyY,
           w: W - 1.6,
-          h: 5.4,
+          h: bodyH,
           fontFace: THEME.font,
-          fontSize: 18,
+          fontSize: page.chart ? 16 : 18,
           color: THEME.dark,
           valign: 'top',
           paraSpaceAfter: 8,

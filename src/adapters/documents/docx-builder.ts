@@ -3,6 +3,7 @@ import {
   AlignmentType,
   Document,
   HeadingLevel,
+  ImageRun,
   Packer,
   Paragraph,
   Table,
@@ -12,7 +13,7 @@ import {
   WidthType,
 } from 'docx';
 import { DOCUMENTS } from '../../config/constants.js';
-import type { DocumentSpec, OutgoingFile } from '../../core/types.js';
+import type { DocumentSpec, OutgoingFile, ReportRenderer } from '../../core/types.js';
 import { fileNameFor, isRtl } from './document-text.js';
 
 const text = (value: string, options: { bold?: boolean; size?: number; color?: string } = {}) =>
@@ -46,11 +47,25 @@ function table(headers: string[], rows: string[][]): Table {
   });
 }
 
-export async function buildDocx(spec: DocumentSpec): Promise<OutgoingFile> {
+export async function buildDocx(spec: DocumentSpec, charts?: ReportRenderer): Promise<OutgoingFile> {
   const body: (Paragraph | Table)[] = [paragraph(spec.title, { heading: HeadingLevel.TITLE })];
   if (spec.subtitle) body.push(paragraph(spec.subtitle, { heading: HeadingLevel.HEADING_2 }));
   for (const section of spec.sections) {
     if (section.heading) body.push(paragraph(section.heading, { heading: HeadingLevel.HEADING_1 }));
+    // Word has no live charts here: the chart is embedded as a picture.
+    if (section.chart && charts)
+      body.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              type: 'png',
+              data: charts.chartPng(section.chart, 1200, 600),
+              transformation: { width: 600, height: 300 },
+            }),
+          ],
+          spacing: { after: 160 },
+        }),
+      );
     for (const p of section.paragraphs ?? []) body.push(paragraph(p));
     for (const b of section.bullets ?? []) body.push(paragraph(b, { bullet: true }));
     if (section.table) body.push(table(section.table.headers, section.table.rows), paragraph(''));

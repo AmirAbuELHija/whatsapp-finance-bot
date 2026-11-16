@@ -31,9 +31,10 @@ export function normalizeSpec(spec: DocumentSpec): DocumentSpec {
         paragraphs: list(s.paragraphs, DOCUMENTS.maxItemsPerSection),
         bullets: list(s.bullets, DOCUMENTS.maxItemsPerSection),
         ...(headers.length ? { table: { headers, rows } } : {}),
+        ...(s.chart && s.chart.points.length > 1 ? { chart: s.chart } : {}),
       };
     })
-    .filter((s) => s.heading || s.paragraphs?.length || s.bullets?.length || s.table);
+    .filter((s) => s.heading || s.paragraphs?.length || s.bullets?.length || s.table || s.chart);
   const subtitle = clip(spec.subtitle, DOCUMENTS.maxTitleChars);
   return {
     format: spec.format,
