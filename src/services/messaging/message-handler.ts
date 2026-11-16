@@ -42,6 +42,9 @@ export interface MessageHandlerDeps {
   rateLimiter: RateLimiter;
 }
 
+/** "@bot summary" (and its spellings) works without the slash, optionally followed by a language: "@bot summary he". */
+const SUMMARY_WORD = /^(summary|summery|sum|סיכום|ملخص)(\s+\p{L}+)?$/iu;
+
 interface BotRequest {
   prompt: string;
   /** Called with @bot or a real mention (vs. a reply to the bot or a private chat). */
@@ -84,7 +87,8 @@ export class MessageHandler {
 
     const request = this.extractRequest(transport, msg);
     if (!request) return;
-    const { prompt, explicit, quotesBot } = request;
+    const { explicit, quotesBot } = request;
+    let { prompt } = request;
 
     const ids = senderIds(key);
     if (!isAuthorized(config.access, key)) {
@@ -102,7 +106,8 @@ export class MessageHandler {
       return;
     }
 
-    const isCommand = commands.isCommand(prompt);
+    const isCommand = commands.isCommand(prompt) || SUMMARY_WORD.test(prompt);
+    if (isCommand && !commands.isCommand(prompt)) prompt = `/${prompt.trim()}`;
     const image = isCommand ? null : msg.image;
     logger.info(
       { chatId, sender: rateKey, command: isCommand ? prompt.split(/\s/)[0] : null, image: image?.from ?? null },
@@ -116,7 +121,7 @@ export class MessageHandler {
     const files: OutgoingFile[] = []; // documents / slides the AI created
     try {
       if (!prompt && !image) answer = await commands.run('/help', { chatId, senderIds: ids });
-      else if (isCommand) answer = await commands.run(prompt, { chatId, senderIds: ids });
+      else if (isCommand) answer = await commands.run(prompt, { chatId, senderIds: ids, files });
       else {
         fromAI = true;
         const ask = prompt || DEFAULT_IMAGE_QUESTION;

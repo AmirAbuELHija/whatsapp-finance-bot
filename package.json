@@ -23,6 +23,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "baileys": "^7.0.0-rc14",
     "docx": "^9.15.4",
     "openai": "^7.57.0",

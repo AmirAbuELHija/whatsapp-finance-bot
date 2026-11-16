@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { isAuthorized, senderIds } from '../src/services/security/authorization.js';
-import { CommandRouter } from '../src/services/commands/command-router.js';
+import { CommandRouter, type CommandRouterOptions } from '../src/services/commands/command-router.js';
 import { helpText } from '../src/services/commands/help.js';
 import { ConversationHistory } from '../src/services/conversation/history.js';
 import { MessageHandler, type Assistant } from '../src/services/messaging/message-handler.js';
@@ -27,7 +27,11 @@ const fakeDownload = async (media: { url?: string | null }) => {
   return new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
 };
 
-function setup(env: Record<string, string> = {}, agentImpl?: Assistant['ask']) {
+function setup(
+  env: Record<string, string> = {},
+  agentImpl?: Assistant['ask'],
+  extra: Partial<CommandRouterOptions> = {},
+) {
   const config = makeConfig({ ALLOWED_USERS: '+972-50-111-1111', RATE_LIMIT_PER_MINUTE: '3', ...env });
   const asked: { chatId: string; text: string; options: any }[] = [];
   const agent: Assistant = {
@@ -49,6 +53,7 @@ function setup(env: Record<string, string> = {}, agentImpl?: Assistant['ask']) {
     summarizer,
     timezone: 'Asia/Jerusalem',
     dmWithoutTrigger: config.access.dmWithoutTrigger,
+    ...extra,
   });
   const real = new MessageHandler({
     config,
@@ -301,6 +306,25 @@ test('files the AI creates are sent after the text answer, quoting the question'
   assert.equal(files.length, 1);
   assert.equal(files[0]!.file.fileName, 'deck.pptx');
   assert.equal(files[0]!.jid, GROUP);
+});
+
+test('"@bot summery" (no slash) sends the dashboard slides after the text, not the AI', async () => {
+  const { handler, asked, sent, files, sock } = setup({ ALLOWED_GROUPS: GROUP }, undefined, {
+    dashboard: {
+      build: async () => ({
+        text: 'Market wrap',
+        files: [1, 2].map((n) => ({ fileName: `s${n}.png`, mimeType: 'image/png', data: new Uint8Array([n]) })),
+      }),
+    },
+  });
+  await handler.handle(sock, groupMsg({ conversation: '@bot summery' }));
+  await handler.handle(sock, groupMsg({ conversation: '@bot summary of the fed meeting please' }));
+  assert.match(sent[0]!.text, /Market wrap/);
+  assert.deepEqual(
+    files.map((f) => f.file.fileName),
+    ['s1.png', 's2.png'],
+  );
+  assert.equal(asked.length, 1); // a longer sentence is a normal AI question
 });
 
 // ── Commands ─────────────────────────────────────────────────────────────────

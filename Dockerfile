@@ -17,6 +17,8 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/package.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
+# Fonts for report images (Latin, Hebrew, Arabic; SIL Open Font License)
+COPY --chown=node:node assets ./assets
 # Security: latest OS patches, and no package managers at runtime (smaller attack surface, fewer CVEs).
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \

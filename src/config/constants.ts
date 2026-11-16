@@ -48,6 +48,8 @@ export const LIMITS = {
   videoCacheEntries: 100,
   minHistoryBarsForVolatility: 10,
   tradingDaysPerYear: 252,
+  /** Points kept per price history for charts. */
+  chartPoints: 160,
   /** Pictures bigger than this are refused (Gemini takes up to ~20MB per request, inline). */
   maxImageBytes: 8 * 1024 * 1024,
   /**
@@ -68,6 +70,8 @@ export const DOCUMENTS = {
   maxTableColumns: 8,
   /** Bullets per slide before a section continues on the next slide. */
   bulletsPerSlide: 7,
+  /** Points shown under a chart on the same slide. */
+  bulletsUnderChart: 3,
   mimeTypes: {
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

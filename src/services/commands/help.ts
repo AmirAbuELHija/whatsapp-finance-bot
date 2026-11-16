@@ -17,6 +17,7 @@ export function helpText({ dmWithoutTrigger = false, youtube = false }: HelpOpti
   lines.push(
     '- 🖼️ Send a chart or screenshot with the caption "@bot what do you see?" (or reply to a picture with @bot)',
   );
+  lines.push("- @bot summary _(today's market dashboard slides)_");
   if (youtube) lines.push('- @bot summarize https://youtu.be/... _(or ask: "what does he say about NVDA?")_');
   lines.push(
     '',

@@ -9,7 +9,7 @@ import { AiProviderError, UserInputError, messageOf } from '../../core/errors.js
 import * as calc from '../../core/finance/calculators.js';
 import { num, parseAmount, pct } from '../../core/text/format.js';
 import { languageFromWord } from '../../core/text/language.js';
-import type { MarketData, NewsItem, NewsSource } from '../../core/types.js';
+import type { MarketData, NewsItem, NewsSource, OutgoingFile } from '../../core/types.js';
 import type { ConversationHistory } from '../conversation/history.js';
 import { formatConversion, formatHistory, formatNews, formatQuote } from './formatters.js';
 import { helpText } from './help.js';
@@ -17,6 +17,13 @@ import { helpText } from './help.js';
 export interface CommandContext {
   chatId: string;
   senderIds?: readonly string[];
+  /** Commands that make pictures or documents add them here; they are sent after the text. */
+  files?: OutgoingFile[];
+}
+
+/** Builds the "@bot summary" dashboard slides. */
+export interface DashboardBuilder {
+  build(language: string): Promise<{ text: string; files: OutgoingFile[] }>;
 }
 
 type Handler = (args: string[], ctx: CommandContext) => string | Promise<string>;
@@ -30,6 +37,8 @@ export interface CommandRouterOptions {
   news?: NewsSource | undefined;
   history: ConversationHistory;
   summarizer?: Summarizer | undefined;
+  dashboard?: DashboardBuilder | undefined;
+  logger?: { warn(obj: object, msg: string): void } | undefined;
   timezone: string;
   /** Language name or code for /summary when none is given. */
   summaryLanguage?: string;
@@ -97,7 +106,7 @@ export class CommandRouter {
         return formatNews(await options.news.getNews(args.join(' ')));
       },
 
-      summary: (args) => this.summary(args),
+      summary: (args, ctx) => this.summary(args, ctx),
 
       compound: (args) => {
         const [principal = 0, rate = 0, years = 0, monthly = 0] = amounts(
@@ -174,6 +183,9 @@ export class CommandRouter {
       n: 'news',
       brief: 'summary',
       sum: 'summary',
+      summery: 'summary',
+      סיכום: 'summary',
+      ملخص: 'summary',
     };
     for (const [alias, target] of Object.entries(aliases)) {
       const handler = handlers[target];
@@ -199,8 +211,8 @@ export class CommandRouter {
     }
   }
 
-  private async summary(args: readonly string[]): Promise<string> {
-    const { news, summarizer, summaryLanguage = 'en' } = this.options;
+  private async summary(args: readonly string[], ctx: CommandContext): Promise<string> {
+    const { news, summarizer, dashboard, summaryLanguage = 'en' } = this.options;
     if (!news || !summarizer) throw new UserInputError('Summary is not configured');
     let language = languageFromWord(summaryLanguage) ?? summaryLanguage;
     const topicWords: string[] = [];
@@ -210,6 +222,17 @@ export class CommandRouter {
       else topicWords.push(word);
     }
     const query = topicWords.join(' ');
+
+    // No topic: the full market dashboard (two slides). A topic, or any failure: the text briefing.
+    if (!query && dashboard && ctx.files) {
+      try {
+        const built = await dashboard.build(language);
+        ctx.files.push(...built.files);
+        return built.text;
+      } catch (error) {
+        this.options.logger?.warn({ error: messageOf(error) }, 'summary slides failed, sending the text summary');
+      }
+    }
     const key = `${query.toLowerCase()}|${language}`;
     const cached = this.summaryCache.get(key);
     if (cached) return cached;

@@ -42,7 +42,9 @@ Tools:
 - If a tool returns an error, tell the user in one short sentence what went wrong (the actual reason), not a generic apology.
 - Market prices may be delayed; mention the time when the tool returns one.
 - When the user sends a picture (a chart, a portfolio or app screenshot, a statement, a table, a document, a photo), look at it carefully and answer about it: what it shows, the important numbers, trends, levels and anything that stands out. Read numbers exactly as written; if part of the picture is unreadable, say so instead of guessing. You can call tools too (e.g. the live price of a stock that appears in a screenshot).
-- When the user asks for slides, a presentation, a document, a report or a file, call create_document (pptx for slides, docx for documents; for PDF make a docx and say they can save it as PDF). Gather live data with the other tools first, write real, specific content, then reply with one or two short sentences about the file; don't repeat its content in the message.
+- When the user asks for a report, summary card, chart or "how is X doing" with visuals for a stock, call get_news for it first, then stock_report with 2-5 short highlights (format image unless they want slides or a document).
+- Slides or a document with charts: in create_document, set chart_symbol on a section to add a real price chart.
+- When the user asks for slides, a presentation, a document or a file on any topic, call create_document (pptx for slides, docx for documents; for PDF make a docx and say they can save it as PDF). Gather live data with the other tools first, write real, specific content, then reply with one or two short sentences about the file; don't repeat its content in the message.
 - Your general knowledge has a cutoff date. For recent events that no tool covers, say you may not be up to date rather than guessing.
 
 Investing:
@@ -81,6 +83,25 @@ export function videoPrompt(question: string, language: string): string {
 /** Wraps a replied-to message so the AI knows what "this" refers to. */
 export const quotedContext = (who: 'bot' | 'member', snippet: string): string =>
   `[Replying to ${who === 'bot' ? 'your earlier answer' : 'a message from another member'}: "${snippet}"]`;
+
+/** Writes the words for the two summary slides. Numbers come from market data; the AI must not invent any. */
+export function marketStoryPrompt(language: string): string {
+  return `You write the text for a 2-slide market dashboard (like a Bloomberg/TradingView infographic) for a WhatsApp stock group.
+Use ONLY the market numbers and headlines given. Never invent numbers, events, dates or quotes. Write in ${language}.
+Reply with ONE JSON object and nothing else:
+{
+  "headline": "2-3 punchy words naming the day, e.g. 'Tech Tumble' (max 22 chars)",
+  "accent": "1 word shown in color after the headline, e.g. the weekday (max 12 chars)",
+  "subtitle": "one line: what happened, e.g. 'third straight drop, led by chip stocks' (max 80 chars)",
+  "causes": ["the 3 main drivers from the headlines, each max 26 chars"],
+  "effect": "what those drivers did, max 28 chars, e.g. 'Chip index -5.3%'",
+  "result": "the market outcome, max 70 chars, e.g. 'Nasdaq -2.49%: 10%+ below its record'",
+  "news": [{"title": "max 34 chars", "detail": "one sentence, max 80 chars"}],
+  "nextUp": ["0-2 upcoming events ONLY if a headline names them, e.g. 'Tue · Nvidia earnings' (max 24 chars)"]
+}
+"news": the 6 most market-moving stories, most important first, merged when about the same story.
+Use the given numbers exactly as written (you may round to 1-2 decimals). If the market rose, say so: don't force a negative story.`;
+}
 
 /** The question when someone sends a picture without saying what they want. */
 export const DEFAULT_IMAGE_QUESTION =

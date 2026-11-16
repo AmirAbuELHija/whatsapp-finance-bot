@@ -1,6 +1,13 @@
 /** The AI brain: builds the conversation, runs the tool-calling loop and falls back across providers. */
 import { AI, LIMITS } from '../../config/constants.js';
-import { FALLBACK_ANSWER, IMAGE_HISTORY_MARKER, marketBriefingPrompt, systemPrompt } from '../../config/prompts.js';
+import {
+  FALLBACK_ANSWER,
+  IMAGE_HISTORY_MARKER,
+  marketBriefingPrompt,
+  marketStoryPrompt,
+  systemPrompt,
+} from '../../config/prompts.js';
+import { parseMarketStory } from '../summary/market-story.js';
 import { HeuristicRater, type RequestRater } from '../../core/ai/request-rating.js';
 import { AiProviderError, messageOf, statusOf } from '../../core/errors.js';
 import { stripNamePrefix } from '../../core/text/name-prefix.js';
@@ -11,6 +18,7 @@ import type {
   ChatResponse,
   ImageInput,
   Logger,
+  MarketStory,
   NewsItem,
   OutgoingFile,
   ToolCall,
@@ -146,6 +154,39 @@ export class ChatAgent {
   }
 
   /** One-shot briefing from headlines: no tools and no chat history, so it's cheap on the free quota. */
+  /** The words for the summary slides, from live numbers and the latest headlines (JSON from the AI). */
+  async writeMarketStory({
+    numbers,
+    items,
+    language,
+  }: {
+    numbers: string;
+    items: readonly NewsItem[];
+    language: string;
+  }): Promise<MarketStory> {
+    const today = new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: this.options.timezone,
+    }).format(this.now());
+    const headlines = items.map((h) => `- ${h.title}${h.source ? ` (${h.source})` : ''}`).join('\n');
+    const response = await this.complete({
+      messages: [
+        { role: 'system', content: marketStoryPrompt(language) },
+        {
+          role: 'user',
+          content: `Date: ${today}\n\nMarket numbers:\n${numbers}\n\nHeadlines, newest first:\n${headlines}`,
+        },
+      ],
+      temperature: AI.summaryTemperature,
+      max_tokens: AI.maxCompletionTokens,
+      score: 5,
+    });
+    return parseMarketStory(firstMessage(response)?.content ?? '', items, this.now(), this.options.timezone);
+  }
+
   async summarize({
     topic,
     items,

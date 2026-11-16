@@ -78,7 +78,9 @@ copy is running), so services should not restart it in a loop.
 **Ask about a message:** reply to anyone's message with `@bot is this true?` or `@bot summarize this`.
 **Private chat:** with `DM_WITHOUT_TRIGGER=true` (only when the bot has its own number), every message gets an answer.
 **YouTube:** `@bot summarize https://youtu.be/…` (needs `GEMINI_API_KEY`; public videos only).
-**Documents and slides:** `@bot make 5 slides on this week's Nasdaq` or `@bot write a short report on TEVA` → the bot gathers live data, writes the content and sends a PowerPoint (`.pptx`) or Word (`.docx`) file in the chat. Hebrew and Arabic are laid out right to left. Asked for a PDF, it sends a `.docx` (save it as PDF from Word or Google Docs).
+**Stock report cards:** `@bot report on NVDA` → a picture in the chat with the price, today's move (green/red), a price chart, key stats and news highlights the AI wrote after reading the latest headlines. `@bot NVDA report as slides` sends the same as a deck with a real PowerPoint chart. Numbers and charts always come from market data, never from the AI.
+**Documents and slides:** `@bot make 5 slides on this week's Nasdaq` or `@bot write a short report on TEVA` → the bot gathers live data, writes the content and sends a PowerPoint (`.pptx`) or Word (`.docx`) file in the chat. Sections can include live price charts (native charts in slides, pictures in Word). Hebrew and Arabic are laid out right to left. Asked for a PDF, it sends a `.docx` (save it as PDF from Word or Google Docs).
+**Market summary slides:** `@bot summary` (also `summery`, `sum`, `סיכום`, `ملخص`, optionally with a language: `@bot summary he`) → two dashboard pictures in a dark trading-terminal style. Slide 1: the day's headline, VIX fear gauge, Nasdaq / S&P 500 / Dow, how many of the 11 sectors fell, the biggest moves in the watchlist, a "why it moved" flow, oil / gold / Bitcoin / 10Y / USD-ILS and what's next. Slide 2: a sector scoreboard, the Nasdaq's 6-month trend, top movers and the six top market news stories. Every number is live from Yahoo Finance at the moment you ask; the AI only writes the words (one call, cached 10 minutes). With a topic (`@bot summary il`) you get the text briefing instead, and if the slides fail you get the text briefing too.
 **Pictures:** send a chart, portfolio screenshot, statement or photo with the caption `@bot what do you see?`, or reply to any picture with `@bot is this a breakout?`. In a private chat with `DM_WITHOUT_TRIGGER=true` the picture alone is enough. JPG, PNG, WEBP and HEIC up to 8 MB, also sent as files. Needs `GEMINI_API_KEY`; the Groq backup can't see pictures and says so.
 
 **Optional shortcuts** (instant; only `/summary` uses the AI, cached 10 minutes):
@@ -89,7 +91,7 @@ copy is running), so services should not restart it in a loop.
 | `/history SYMBOL [range]` | `/history NVDA 6mo` (5d 1mo 3mo 6mo ytd 1y 2y 5y 10y max) |
 | `/fx [amount] FROM TO` | `/fx 100 USD ILS` |
 | `/news [ticker / topic / il]` | `/news`, `/news il`, `/news NVDA`, `/news ריבית בנק ישראל` |
-| `/summary [topic] [he/ar/en]` | `/summary`, `/summary il he` |
+| `/summary [topic] [he/ar/en]` | `/summary` (slides), `/summary il he` (text) |
 | `/compound start rate% years [monthly]` | `/compound 10k 7 20 500` |
 | `/loan amount rate% years` | `/loan 800k 4.5 25` |
 | `/goal target rate% years [saved]` | `/goal 100k 6 10 5000` |
