@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── Build: compile TypeScript, then keep only production dependencies ──
-FROM node:22-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
 # ── Runtime: no compiler, no dev tools, non-root ──
-FROM node:22-slim AS runtime
+FROM node:26-slim AS runtime
 # The WhatsApp login goes to /app/auth (the default ./auth). Not set as ENV: the name looks like a secret to scanners.
 ENV NODE_ENV=production
 WORKDIR /app
