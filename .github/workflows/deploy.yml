@@ -25,9 +25,11 @@ env:
 jobs:
   build:
     name: Build, scan & push
+    # Skipped until infra/bootstrap.sh has created the cloud project and set the repository variables.
     if: >-
+      vars.GCP_IMAGE_REPO != '' && (
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'workflow_dispatch' && inputs.image == '')
+      (github.event_name == 'workflow_dispatch' && inputs.image == ''))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +53,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Vulnerability scan (blocks the deploy on fixable HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_REPO }}:${{ github.event.workflow_run.head_sha || github.sha }}
           severity: HIGH,CRITICAL
