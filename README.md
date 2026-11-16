@@ -60,9 +60,9 @@ The bot must stay online to answer. Pick one:
 | Where | How | Notes |
 |---|---|---|
 | **macOS (your laptop)** | `caffeinate -i npm start` | Stops the Mac from sleeping while it runs. Keep the lid open and plugged in. |
-| **Any OS with PM2** | `npm i -g pm2 && npm run build && pm2 start ecosystem.config.cjs && pm2 save` | Restarts on crash. Logs: `pm2 logs whatsapp-finance-bot`. Start on boot: `pm2 startup` (Linux/macOS) or the `pm2-installer` package (Windows). |
-| **Linux server (systemd)** | Copy the app to `/opt/whatsapp-finance-bot`, then use [`deploy/linux/whatsapp-finance-bot.service`](deploy/linux/whatsapp-finance-bot.service) | Hardened service with auto-restart. Logs: `journalctl -u whatsapp-finance-bot -f`. |
-| **Docker** | `docker compose up -d` | Non-root, read-only container; login kept in the `wa-auth` volume. First run: `docker compose logs -f` for the QR / pairing code. |
+| **Any OS with PM2** | `npm i -g pm2 && npm run build && pm2 start deploy/pm2/ecosystem.config.cjs && pm2 save` | Restarts on crash. Logs: `pm2 logs whatsapp-finance-bot`. Start on boot: `pm2 startup` (Linux/macOS) or the `pm2-installer` package (Windows). |
+| **Linux server (systemd)** | Copy the app to `/opt/whatsapp-finance-bot`, then use [`deploy/systemd/whatsapp-finance-bot.service`](deploy/systemd/whatsapp-finance-bot.service) | Hardened service with auto-restart. Logs: `journalctl -u whatsapp-finance-bot -f`. |
+| **Docker** | `docker compose -f deploy/docker/docker-compose.yml up -d` | Non-root, read-only container; login kept in the `wa-auth` volume. First run: `docker compose -f deploy/docker/docker-compose.yml logs -f` for the QR / pairing code. |
 | **Windows** | `npm start` in a terminal, or PM2 above | Set *Power & sleep → Sleep: Never* while it runs. |
 | **Google Cloud (recommended, 24/7)** | [`infra/README.md`](infra/README.md) | Free e2-micro VM, Terraform, keyless GitHub Actions deploys with approval, scans, auto-rollback, alerts. |
 
