@@ -78,6 +78,7 @@ copy is running), so services should not restart it in a loop.
 **Ask about a message:** reply to anyone's message with `@bot is this true?` or `@bot summarize this`.
 **Private chat:** with `DM_WITHOUT_TRIGGER=true` (only when the bot has its own number), every message gets an answer.
 **YouTube:** `@bot summarize https://youtu.be/…` (needs `GEMINI_API_KEY`; public videos only).
+**Documents and slides:** `@bot make 5 slides on this week's Nasdaq` or `@bot write a short report on TEVA` → the bot gathers live data, writes the content and sends a PowerPoint (`.pptx`) or Word (`.docx`) file in the chat. Hebrew and Arabic are laid out right to left. Asked for a PDF, it sends a `.docx` (save it as PDF from Word or Google Docs).
 **Pictures:** send a chart, portfolio screenshot, statement or photo with the caption `@bot what do you see?`, or reply to any picture with `@bot is this a breakout?`. In a private chat with `DM_WITHOUT_TRIGGER=true` the picture alone is enough. JPG, PNG, WEBP and HEIC up to 8 MB, also sent as files. Needs `GEMINI_API_KEY`; the Groq backup can't see pictures and says so.
 
 **Optional shortcuts** (instant; only `/summary` uses the AI, cached 10 minutes):

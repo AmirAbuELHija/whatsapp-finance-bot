@@ -24,8 +24,10 @@
   "license": "MIT",
   "dependencies": {
     "baileys": "^7.0.0-rc14",
+    "docx": "^9.15.4",
     "openai": "^7.57.0",
     "pino": "^10.4.0",
+    "pptxgenjs": "^4.0.1",
     "qrcode-terminal": "^0.12.0",
     "zod": "^4.6.7"
   },
@@ -44,6 +46,7 @@
   "overrides": {
     "@typescript-eslint/typescript-estree": {
       "minimatch": "^11.0.1"
-    }
+    },
+    "image-size": "^2.1.0"
   }
 }

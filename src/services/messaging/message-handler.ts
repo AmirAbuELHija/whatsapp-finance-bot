@@ -8,7 +8,14 @@ import { escapeRegExp } from '../../core/text/language.js';
 import { parseTrigger, userPart } from '../../core/text/trigger.js';
 import { extractYouTubeId } from '../../core/text/youtube-link.js';
 import { toWhatsApp } from '../../core/text/whatsapp-markdown.js';
-import type { ChatTransport, ImageAttachment, ImageInput, InboundMessage, Logger } from '../../core/types.js';
+import type {
+  ChatTransport,
+  ImageAttachment,
+  ImageInput,
+  InboundMessage,
+  Logger,
+  OutgoingFile,
+} from '../../core/types.js';
 import { TOOL } from '../agent/tool-registry.js';
 import type { CommandRouter } from '../commands/command-router.js';
 import { isAuthorized, isGroup, senderIds } from '../security/authorization.js';
@@ -18,7 +25,12 @@ export interface Assistant {
   ask(
     chatId: string,
     text: string,
-    options?: { senderName?: string | undefined; forceTool?: string | undefined; images?: ImageInput[] | undefined },
+    options?: {
+      senderName?: string | undefined;
+      forceTool?: string | undefined;
+      images?: ImageInput[] | undefined;
+      files?: OutgoingFile[] | undefined;
+    },
   ): Promise<string>;
 }
 
@@ -101,6 +113,7 @@ export class MessageHandler {
     const stopTyping = this.showTyping(transport, chatId);
     let answer: string;
     let fromAI = false;
+    const files: OutgoingFile[] = []; // documents / slides the AI created
     try {
       if (!prompt && !image) answer = await commands.run('/help', { chatId, senderIds: ids });
       else if (isCommand) answer = await commands.run(prompt, { chatId, senderIds: ids });
@@ -114,6 +127,7 @@ export class MessageHandler {
           // a YouTube link always goes to the video tool
           forceTool: !images && extractYouTubeId(question) ? TOOL.video : undefined,
           images,
+          files,
         });
       }
     } catch (error) {
@@ -126,6 +140,16 @@ export class MessageHandler {
       await stopTyping();
     }
     await this.reply(transport, msg, answer, fromAI);
+    for (const file of files) {
+      try {
+        const id = await transport.sendFile(msg.chatId, file, msg);
+        if (id) this.sentIds.add(id);
+        logger.info({ chatId, file: file.fileName, bytes: file.data.byteLength }, 'file sent');
+      } catch (error) {
+        logger.error({ error: messageOf(error), file: file.fileName }, 'could not send file');
+        await this.reply(transport, msg, `⚠️ I made "${file.fileName}" but couldn't send it. Please try again.`, false);
+      }
+    }
   }
 
   /** The bot is called by @bot / a real mention, by a reply to one of its messages, or in a private chat (if enabled). */
