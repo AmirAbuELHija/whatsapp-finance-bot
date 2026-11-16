@@ -1,0 +1,10 @@
+# Project-level exception to the organization's "no external IPs on VMs" policy, for the bot VM only.
+# The VM needs a public IPv4 to reach WhatsApp/Gemini (Cloud NAT is the alternative, ~30 USD/month).
+# No firewall rule lets traffic in, so the address is used for outbound connections only.
+# Apply: gcloud org-policies set-policy infra/org-policy-external-ip.yaml
+name: projects/whatsapp-ai-assistant-514917/policies/compute.vmExternalIpAccess
+spec:
+  rules:
+    - values:
+        allowedValues:
+          - projects/whatsapp-ai-assistant-514917/zones/us-central1-a/instances/wfb-bot

@@ -38,14 +38,14 @@ fi
 
 step "Terraform variables"
 if [[ ! -f "${TF_DIR}/terraform.tfvars" ]]; then
-  account="$(gcloud config get-value account 2>/dev/null)"
   cat >"${TF_DIR}/terraform.tfvars" <<VARS
 project_id        = "${PROJECT_ID}"
 region            = "${REGION}"
 zone              = "${ZONE}"
 github_repository = "${REPO}"
 alert_email       = "${ALERT_EMAIL}"
-admin_members     = ["user:${account}"]
+# Project owners can already SSH through IAP; add others here, e.g. ["user:friend@gmail.com"].
+admin_members     = []
 VARS
   echo "Wrote ${TF_DIR}/terraform.tfvars (git-ignored)"
 fi
@@ -57,15 +57,17 @@ terraform -chdir="$TF_DIR" apply
 step "Budget alert: ${BUDGET_USD} USD/month, counted before credits"
 billing="$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingAccountName)' | sed 's#billingAccounts/##')"
 if [[ -n "$billing" ]] && ! gcloud billing budgets list --billing-account="$billing" --format='value(displayName)' | grep -qx "wfb ${PROJECT_ID}"; then
+  number="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
   gcloud billing budgets create --billing-account="$billing" --display-name="wfb ${PROJECT_ID}" \
-    --budget-amount="${BUDGET_USD}USD" --filter-projects="projects/${PROJECT_ID}" \
+    --budget-amount="${BUDGET_USD}USD" --filter-projects="projects/${number}" \
     --credit-types-treatment=exclude-all-credits \
-    --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
+    --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0 ||
+    echo "⚠️  Could not create the budget alert. Create it in the console: Billing → Budgets & alerts."
 fi
 
 step "GitHub repository variables (not secrets: nothing here grants access by itself)"
 vars_json="$(terraform -chdir="$TF_DIR" output -json github_variables)"
-admins="[\"user:$(gcloud config get-value account 2>/dev/null)\"]"
+admins="[]"
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   while IFS='=' read -r key value; do
     gh variable set "$key" --repo "$REPO" --body "$value"

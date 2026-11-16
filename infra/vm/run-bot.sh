@@ -37,6 +37,7 @@ exec docker run --rm --name wfb \
   -e NODE_ENV=production \
   -e AUTH_DIR=/app/auth \
   -e ENV_FILE=/run/secrets/bot.env \
+  -e BOT_IMAGE="$image" \
   -v "${RUN_DIR}/bot.env:/run/secrets/bot.env:ro" \
   -v "${AUTH_DIR_HOST}:/app/auth" \
   "$image"
