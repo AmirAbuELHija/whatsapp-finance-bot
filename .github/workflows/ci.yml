@@ -130,7 +130,12 @@ jobs:
           docker tag whatsapp-finance-bot:ci "$tag"
           gcloud auth configure-docker "${IMAGE_REPO%%/*}" --quiet
           docker push "$tag"
-          digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          # The image also has its local CI name, so pick the digest that belongs to the registry.
+          digest="$(docker inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' "$tag" | grep -m1 "^${IMAGE_REPO}@sha256:" || true)"
+          if [ -z "$digest" ]; then
+            echo "::error::No registry digest for $tag after the push"
+            exit 1
+          fi
           echo "$digest" > image.txt
           echo "Published $digest"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
