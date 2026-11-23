@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Nothing leaves the page: only this file, its fonts and inline styles/script are allowed. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file:; img-src data:"
+    />
+    <title>Market summary</title>
+    <!--
+  The "@bot summary" dashboard, from the Market Summary artifact design. The bot opens this page in a headless
+  browser, calls renderSummary(view) with live numbers (see src/adapters/reports/summary-view.ts) and takes a
+  1920×1080 screenshot of each <section>. Edit the look here; all text is set with textContent, never as HTML.
+-->
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url('../fonts/NotoSans-Regular.ttf');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Inter';
+        src: url('../fonts/NotoSans-Bold.ttf');
+        font-weight: 600 700;
+      }
+      @font-face {
+        font-family: 'Nunito Sans';
+        src: url('../fonts/NotoSans-Regular.ttf');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Nunito Sans';
+        src: url('../fonts/NotoSans-Bold.ttf');
+        font-weight: 600 700;
+      }
+      @font-face {
+        font-family: 'Noto Sans Hebrew';
+        src: url('../fonts/NotoSansHebrew-Regular.ttf');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Noto Sans Hebrew';
+        src: url('../fonts/NotoSansHebrew-Bold.ttf');
+        font-weight: 600 700;
+      }
+      @font-face {
+        font-family: 'Noto Sans Arabic';
+        src: url('../fonts/NotoSansArabic-Regular.ttf');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Noto Sans Arabic';
+        src: url('../fonts/NotoSansArabic-Bold.ttf');
+        font-weight: 600 700;
+      }
+
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        background: #131722;
+      }
+      body {
+        font-family: 'Nunito Sans', 'Noto Sans Hebrew', 'Noto Sans Arabic', sans-serif;
+        color: #d1d4dc;
+      }
+      .inter {
+        font-family: 'Inter', 'Noto Sans Hebrew', 'Noto Sans Arabic', sans-serif;
+      }
+      section {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        padding: 80px;
+        background: #131722;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+
+      .head {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 40px;
+      }
+      .head-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+        flex: 1;
+      }
+      .title {
+        font-size: 64px;
+        font-weight: 700;
+        line-height: 70px;
+        color: #f0f3fa;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .title-accent {
+        color: #5b9cf6;
+      }
+      .sub {
+        font-size: 24px;
+        line-height: 30px;
+        color: #9598a1;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+
+      .gauge {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 400px;
+        flex: none;
+      }
+      .gauge-label {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        white-space: nowrap;
+      }
+      .gauge-track {
+        position: relative;
+        width: 400px;
+        height: 18px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #26a69a 0%, #f7a600 50%, #ef5350 100%);
+      }
+      .gauge-pin {
+        position: absolute;
+        top: -8px;
+        width: 8px;
+        height: 34px;
+        border-radius: 4px;
+        background: #f0f3fa;
+      }
+      .gauge-ends {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+      .gauge-end {
+        font-size: 24px;
+        line-height: 28px;
+        color: #9598a1;
+      }
+
+      .row {
+        display: flex;
+        flex-direction: row;
+        gap: 18px;
+      }
+      .card {
+        background: #1e222d;
+        border: 1px solid #363a45;
+        border-radius: 10px;
+        padding: 23px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+      }
+      .idx {
+        flex: 1;
+      }
+      .idx-name {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #9598a1;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .idx-line {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .idx-val {
+        font-size: 40px;
+        line-height: 50px;
+        font-weight: 600;
+        color: #f0f3fa;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .pill {
+        font-size: 26px;
+        line-height: 34px;
+        font-weight: 600;
+        padding: 4px 12px;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
+      .pill.down {
+        color: #ef5350;
+        background: #3a2329;
+      }
+      .pill.up,
+      .pill.flat {
+        color: #26a69a;
+        background: #1e3a36;
+      }
+      .meter {
+        width: 370px;
+        height: 8px;
+        border-radius: 4px;
+        background: #2a2e39;
+      }
+      .meter-fill {
+        height: 8px;
+        border-radius: 4px;
+        background: #ef5350;
+      }
+      .meter-fill.up,
+      .meter-fill.flat {
+        background: #26a69a;
+      }
+
+      .donut-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 20px;
+        height: 100%;
+      }
+      .donut-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .donut-big {
+        font-size: 44px;
+        line-height: 50px;
+        font-weight: 700;
+        color: #ef5350;
+        white-space: nowrap;
+      }
+      .donut-big.up {
+        color: #26a69a;
+      }
+      .donut-cap {
+        font-size: 24px;
+        line-height: 30px;
+        color: #d1d4dc;
+      }
+
+      .mid {
+        flex: 1;
+        min-height: 0;
+      }
+      .col {
+        justify-content: center;
+      }
+      .col-bars {
+        width: 470px;
+        flex: none;
+      }
+      .col-slope {
+        width: 500px;
+        flex: none;
+      }
+      .col-flow {
+        flex: 1;
+      }
+      .col-title {
+        font-size: 28px;
+        line-height: 34px;
+        font-weight: 600;
+        color: #5b9cf6;
+      }
+
+      .bars {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 150px 180px 76px;
+        gap: 8px;
+        align-items: center;
+      }
+      .bar-name {
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 600;
+        color: #d1d4dc;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .bar-track {
+        width: 180px;
+        height: 28px;
+        border-radius: 4px;
+        background: #2a2e39;
+      }
+      .bar-fill {
+        height: 28px;
+        border-radius: 4px;
+        background: #ef5350;
+      }
+      .bar-fill.up {
+        background: #26a69a;
+      }
+      .bar-fill.flat {
+        background: #f7a600;
+      }
+      .bar-val {
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 700;
+        color: #ef5350;
+        white-space: nowrap;
+      }
+      .bar-val.up {
+        color: #26a69a;
+      }
+      .bar-val.flat {
+        color: #f7a600;
+      }
+
+      .slope {
+        position: relative;
+        width: 452px;
+        height: 250px;
+      }
+      .slope svg {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      .slope-open {
+        position: absolute;
+        left: 0px;
+        width: 80px;
+        height: 30px;
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #9598a1;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .slope-close {
+        position: absolute;
+        left: 252px;
+        width: 200px;
+        height: 30px;
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        white-space: nowrap;
+      }
+
+      .flow {
+        position: relative;
+        width: 694px;
+        height: 296px;
+        align-self: center;
+      }
+      .flow svg {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      .cause {
+        position: absolute;
+        top: 0px;
+        width: 218px;
+        height: 84px;
+        padding: 0 10px;
+        border: 1px solid #f7a600;
+        border-radius: 8px;
+        background: #2a2e39;
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 700;
+        color: #f0f3fa;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .effect {
+        position: absolute;
+        left: 177px;
+        top: 132px;
+        width: 340px;
+        height: 52px;
+        padding: 0 10px;
+        border: 1px solid #ef5350;
+        border-radius: 8px;
+        background: #3a2329;
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        text-align: center;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .effect.up {
+        border-color: #26a69a;
+        background: #1e3a36;
+      }
+      .result {
+        position: absolute;
+        left: 67px;
+        top: 212px;
+        width: 560px;
+        height: 84px;
+        padding: 0 10px;
+        border-radius: 8px;
+        background: #2962ff;
+        font-size: 24px;
+        line-height: 28px;
+        color: #ffffff;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .result b {
+        white-space: nowrap;
+      }
+
+      .asset {
+        flex: 1;
+        padding: 15px 18px;
+        gap: 0px;
+        justify-content: center;
+      }
+      .asset-line {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .asset-name {
+        font-size: 24px;
+        line-height: 30px;
+        color: #9598a1;
+        white-space: nowrap;
+      }
+      .asset-chg {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        white-space: nowrap;
+        color: #ef5350;
+      }
+      .asset-chg.up {
+        color: #26a69a;
+      }
+      .asset-chg.flat {
+        color: #f7a600;
+      }
+      .asset-val {
+        font-size: 32px;
+        line-height: 40px;
+        font-weight: 600;
+        color: #f0f3fa;
+        white-space: nowrap;
+      }
+
+      .next {
+        width: 688px;
+        flex: none;
+        background: #2962ff;
+        border: 1px solid #2962ff;
+        gap: 8px;
+        justify-content: center;
+      }
+      .next-label {
+        font-size: 28px;
+        line-height: 34px;
+        font-weight: 600;
+        color: #ffffff;
+      }
+      .next-steps {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        align-items: center;
+        min-width: 0;
+      }
+      .chip {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        background: #131722;
+        padding: 6px 14px;
+        border-radius: 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        max-width: 300px;
+      }
+
+      .source {
+        font-size: 22px;
+        line-height: 30px;
+        color: #9598a1;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+
+      /* slide 2 */
+      .date-pill {
+        font-size: 28px;
+        line-height: 34px;
+        font-weight: 600;
+        color: #f0f3fa;
+        background: #2a2e39;
+        border: 1px solid #363a45;
+        border-radius: 6px;
+        padding: 8px 22px;
+        white-space: nowrap;
+        flex: none;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .stack-mid {
+        width: 560px;
+        flex: none;
+      }
+      .grow {
+        flex: 1;
+        justify-content: center;
+      }
+      .col-sectors {
+        width: 560px;
+        flex: none;
+        justify-content: center;
+      }
+      .sectors {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .sec-row {
+        display: grid;
+        grid-template-columns: 204px 105px 105px 76px;
+        gap: 0px;
+        align-items: center;
+        column-gap: 6px;
+      }
+      .sec-name {
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 600;
+        color: #d1d4dc;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .sec-neg {
+        width: 105px;
+        height: 28px;
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+      }
+      .sec-pos {
+        width: 105px;
+        height: 28px;
+        border-left: 3px solid #9598a1;
+        display: flex;
+        flex-direction: row;
+      }
+      .sec-fill {
+        height: 28px;
+        border-radius: 4px;
+        background: #ef5350;
+      }
+      .sec-fill.up,
+      .sec-fill.flat {
+        background: #26a69a;
+      }
+      .sec-val {
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 700;
+        color: #ef5350;
+        white-space: nowrap;
+        text-align: right;
+      }
+      .sec-val.up,
+      .sec-val.flat {
+        color: #26a69a;
+      }
+      .note {
+        font-size: 24px;
+        line-height: 30px;
+        color: #9598a1;
+      }
+
+      .dd {
+        position: relative;
+        width: 512px;
+        height: 262px;
+      }
+      .dd svg {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      .dd-label {
+        position: absolute;
+        height: 30px;
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        white-space: nowrap;
+      }
+      .dd-label.now {
+        width: 300px;
+        text-align: right;
+        color: #ef5350;
+      }
+      .dd-muted {
+        position: absolute;
+        height: 30px;
+        font-size: 24px;
+        line-height: 30px;
+        color: #9598a1;
+        white-space: nowrap;
+      }
+
+      .movers {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .mover {
+        display: grid;
+        grid-template-columns: 24px 300px 164px;
+        gap: 12px;
+        align-items: center;
+      }
+      .mover-arrow {
+        width: 24px;
+        height: 22px;
+      }
+      .mover-name {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .mover-why {
+        font-size: 24px;
+        line-height: 30px;
+        color: #ef5350;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .mover-why.up {
+        color: #26a69a;
+      }
+
+      .col-news {
+        flex: 1;
+        justify-content: center;
+        gap: 18px;
+      }
+      .news {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .news-item {
+        display: flex;
+        flex-direction: row;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .news-num {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        padding: 5px 0px;
+        border-radius: 6px;
+        background: #2962ff;
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #ffffff;
+        text-align: center;
+      }
+      .news-text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        flex: 1;
+      }
+      .news-h {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+        color: #f0f3fa;
+      }
+      .news-p {
+        font-size: 24px;
+        line-height: 30px;
+        color: #d1d4dc;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .empty {
+        font-size: 24px;
+        line-height: 30px;
+        color: #9598a1;
+      }
+    </style>
+  </head>
+  <body>
+    <section id="wrap">
+      <div class="head">
+        <div class="head-left">
+          <h1 class="title inter" data-fit="40">
+            <span id="title"></span> <span class="title-accent" id="accent"></span>
+          </h1>
+          <p class="sub" id="sub" data-fit="18"></p>
+        </div>
+        <div class="gauge" id="vix">
+          <p class="gauge-label" id="vix-label"></p>
+          <div class="gauge-track"><div class="gauge-pin" id="vix-pin"></div></div>
+          <div class="gauge-ends">
+            <p class="gauge-end">Calm</p>
+            <p class="gauge-end">Fear</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" id="indexes">
+        <div class="card idx" id="breadth">
+          <div class="donut-row">
+            <svg id="donut" width="112" height="112" viewBox="0 0 112 112" role="img">
+              <circle cx="56" cy="56" r="44" fill="none" stroke="#26A69A" stroke-width="20" />
+              <circle
+                id="donut-down"
+                cx="56"
+                cy="56"
+                r="44"
+                fill="none"
+                stroke="#EF5350"
+                stroke-width="20"
+                stroke-dasharray="0 276.5"
+                transform="rotate(-90 56 56)"
+              />
+            </svg>
+            <div class="donut-text">
+              <p class="donut-big inter" id="breadth-big"></p>
+              <p class="donut-cap" id="breadth-cap"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mid">
+        <div class="card col col-bars">
+          <h3 class="col-title inter" id="bars-title"></h3>
+          <div class="bars" id="bars"></div>
+        </div>
+
+        <div class="card col col-slope" id="slope-card">
+          <h3 class="col-title inter">Open → now</h3>
+          <div class="slope" id="slope">
+            <svg
+              id="slope-svg"
+              width="452"
+              height="250"
+              viewBox="0 0 452 250"
+              role="img"
+              aria-label="Slope chart: each index from the day's open to now"
+            ></svg>
+          </div>
+        </div>
+
+        <div class="card col col-flow">
+          <h3 class="col-title inter" id="flow-title"></h3>
+          <div class="flow">
+            <!-- causes 0/238/476 × 218 wide, effect 177,132 340×52, result 67,212 560×84 ; bus at y=108 -->
+            <svg width="694" height="296" viewBox="0 0 694 296" aria-hidden="true">
+              <g stroke="#9598A1" stroke-width="3" fill="none">
+                <path id="bus" d="M109 84 V108 H585 V84" />
+                <path d="M347 84 V128" />
+                <path d="M347 184 V208" />
+              </g>
+              <path d="M340 122 L347 132 L354 122 Z M340 202 L347 212 L354 202 Z" fill="#9598A1" />
+            </svg>
+            <p class="cause" id="cause-0" style="left: 0px" data-fit="18"></p>
+            <p class="cause" id="cause-1" style="left: 238px" data-fit="18"></p>
+            <p class="cause" id="cause-2" style="left: 476px" data-fit="18"></p>
+            <p class="effect" id="effect" data-fit="18"></p>
+            <div class="result" id="result" data-fit="18"><b id="result-bold"></b><span id="result-text"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" id="assets">
+        <div class="card next" id="next">
+          <p class="next-label inter">Next up</p>
+          <div class="next-steps" id="next-steps"></div>
+        </div>
+      </div>
+
+      <p class="source" id="source1" data-fit="16"></p>
+    </section>
+
+    <section id="more">
+      <div class="head">
+        <div class="head-left">
+          <h1 class="title inter">Under the <span class="title-accent">Hood</span></h1>
+          <p class="sub">The bigger picture: sectors, the Nasdaq's trend, movers and the day's top news</p>
+        </div>
+        <p class="date-pill inter" id="date"></p>
+      </div>
+
+      <div class="row mid">
+        <div class="card col-sectors">
+          <h3 class="col-title inter">Sector scoreboard</h3>
+          <div class="sectors" id="sectors"></div>
+          <p class="note" id="sector-note"></p>
+        </div>
+
+        <div class="stack stack-mid">
+          <div class="card grow">
+            <h3 class="col-title inter" id="trend-title"></h3>
+            <div class="dd" id="trend">
+              <svg id="trend-svg" width="512" height="262" viewBox="0 0 512 262" role="img"></svg>
+            </div>
+          </div>
+          <div class="card grow">
+            <h3 class="col-title inter" id="movers-title"></h3>
+            <div class="movers" id="movers"></div>
+          </div>
+        </div>
+
+        <div class="card col-news">
+          <h3 class="col-title inter">Top market news</h3>
+          <div class="news" id="news"></div>
+        </div>
+      </div>
+
+      <p class="source" id="source2" data-fit="16"></p>
+    </section>
+
+    <script>
+      (() => {
+        const SVG = 'http://www.w3.org/2000/svg';
+        const $ = (id) => document.getElementById(id);
+        /** Creates an element with classes and (plain) text. Text never becomes HTML. */
+        const el = (tag, cls, text) => {
+          const e = document.createElement(tag);
+          if (cls) e.className = cls;
+          if (text != null) {
+            e.textContent = text;
+            e.dir = 'auto';
+          }
+          return e;
+        };
+        const svgEl = (tag, attrs) => {
+          const e = document.createElementNS(SVG, tag);
+          for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+          return e;
+        };
+        const setText = (id, text) => {
+          const e = $(id);
+          e.textContent = text ?? '';
+          e.dir = 'auto';
+        };
+        /** Shrinks the font of a box until its text fits (down to data-fit px). */
+        const fit = (e) => {
+          const min = Number(e.dataset.fit) || 16;
+          let size = parseFloat(getComputedStyle(e).fontSize);
+          const lineRatio = parseFloat(getComputedStyle(e).lineHeight) / size || 1.2;
+          while (size > min && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1)) {
+            size -= 1;
+            e.style.fontSize = size + 'px';
+            e.style.lineHeight = Math.round(size * lineRatio) + 'px';
+            for (const child of e.querySelectorAll('*')) {
+              child.style.fontSize = size + 'px';
+              child.style.lineHeight = Math.round(size * lineRatio) + 'px';
+            }
+          }
+        };
+
+        window.renderSummary = async (v) => {
+          // ── Slide 1 ──
+          setText('title', v.title);
+          setText('accent', v.accent);
+          // Hebrew / Arabic headline: lay the title out right-to-left so headline and accent read in order.
+          if (/[\u0590-\u06FF]/.test(v.title + v.accent)) {
+            const title = document.querySelector('#wrap .title');
+            title.dir = 'rtl';
+            title.style.textAlign = 'left';
+          }
+          setText('sub', v.sub);
+          if (v.vix) {
+            setText('vix-label', v.vix.label);
+            $('vix-pin').style.left = v.vix.pinX + 'px';
+          } else $('vix').hidden = true;
+
+          const indexRow = $('indexes');
+          for (const i of v.indexes) {
+            const card = el('div', 'card idx');
+            card.append(el('p', 'idx-name', i.name));
+            const line = el('div', 'idx-line');
+            line.append(el('p', 'idx-val inter', i.value), el('p', 'pill inter ' + i.tone, i.pct));
+            const meter = el('div', 'meter');
+            const fill = el('div', 'meter-fill ' + i.tone);
+            fill.style.width = i.meterW + 'px';
+            meter.append(fill);
+            card.append(line, meter);
+            indexRow.insertBefore(card, $('breadth'));
+          }
+          if (v.breadth) {
+            setText('breadth-big', v.breadth.big);
+            $('breadth-big').classList.add(v.breadth.tone);
+            setText('breadth-cap', v.breadth.caption);
+            $('donut-down').setAttribute('stroke-dasharray', v.breadth.downDash + ' 276.5');
+            $('donut').setAttribute('aria-label', v.breadth.label);
+          } else $('breadth').hidden = true;
+
+          setText('bars-title', v.barsTitle);
+          for (const b of v.bars) {
+            const row = el('div', 'bar-row');
+            const track = el('div', 'bar-track');
+            const fill = el('div', 'bar-fill ' + b.tone);
+            fill.style.width = b.w + 'px';
+            track.append(fill);
+            row.append(el('p', 'bar-name', b.name), track, el('p', 'bar-val ' + b.tone, b.pct));
+            $('bars').append(row);
+          }
+          if (!v.bars.length) $('bars').append(el('p', 'empty', 'No watchlist data right now'));
+
+          if (v.slope) {
+            const svg = $('slope-svg');
+            for (const l of v.slope.lines) {
+              svg.append(
+                svgEl('line', {
+                  x1: 96,
+                  y1: l.y1,
+                  x2: 236,
+                  y2: l.y2,
+                  stroke: l.color,
+                  'stroke-width': 6,
+                  'stroke-linecap': 'round',
+                }),
+              );
+              svg.append(
+                svgEl('circle', { cx: 96, cy: l.y1, r: 9, fill: l.color }),
+                svgEl('circle', { cx: 236, cy: l.y2, r: 9, fill: l.color }),
+              );
+            }
+            for (const t of v.slope.openLabels) {
+              const p = el('p', 'slope-open', t.text);
+              p.style.top = t.y + 'px';
+              $('slope').append(p);
+            }
+            for (const t of v.slope.closeLabels) {
+              const p = el('p', 'slope-close', t.text);
+              p.style.top = t.y + 'px';
+              $('slope').append(p);
+            }
+          } else $('slope-card').hidden = true;
+
+          setText('flow-title', v.flow.title);
+          v.flow.causes.forEach((c, i) => setText('cause-' + i, c));
+          for (let i = v.flow.causes.length; i < 3; i++) $('cause-' + i).hidden = true;
+          if (v.flow.causes.length < 3)
+            $('bus').setAttribute(
+              'd',
+              v.flow.causes.length === 2 ? 'M109 84 V108 H347 M347 84 V108' : 'M109 84 V108 H347',
+            );
+          setText('effect', v.flow.effect);
+          $('effect').classList.add(v.flow.title === 'Why it rose' ? 'up' : 'down');
+          setText('result-bold', v.flow.resultBold);
+          setText('result-text', v.flow.resultText);
+
+          for (const a of v.assets) {
+            const card = el('div', 'card asset');
+            const line = el('div', 'asset-line');
+            line.append(el('p', 'asset-name', a.name), el('p', 'asset-chg ' + a.tone, a.change));
+            card.append(line, el('p', 'asset-val inter', a.value));
+            $('assets').insertBefore(card, $('next'));
+          }
+          if (v.nextUp.length) {
+            v.nextUp.forEach((n, i) => {
+              if (i > 0) {
+                const arrow = svgEl('svg', { width: 32, height: 20, viewBox: '0 0 32 20', 'aria-hidden': 'true' });
+                arrow.append(
+                  svgEl('path', {
+                    d: 'M2 10 H24 M18 3 L27 10 L18 17',
+                    stroke: '#FFFFFF',
+                    'stroke-width': 3,
+                    fill: 'none',
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                  }),
+                );
+                $('next-steps').append(arrow);
+              }
+              $('next-steps').append(el('p', 'chip', n));
+            });
+          } else $('next').hidden = true;
+          setText('source1', v.source1);
+
+          // ── Slide 2 ──
+          setText('date', v.date);
+          for (const s of v.sectors) {
+            const row = el('div', 'sec-row');
+            const neg = el('div', 'sec-neg');
+            const pos = el('div', 'sec-pos');
+            const fill = el('div', 'sec-fill ' + s.tone);
+            fill.style.width = (s.negW || s.posW) + 'px';
+            (s.negW ? neg : pos).append(fill);
+            row.append(el('p', 'sec-name', s.name), neg, pos, el('p', 'sec-val ' + s.tone, s.pct));
+            $('sectors').append(row);
+          }
+          setText('sector-note', v.sectorNote);
+
+          if (v.trend) {
+            const t = v.trend;
+            setText('trend-title', t.title);
+            const svg = $('trend-svg');
+            svg.setAttribute('aria-label', t.title + ': ' + t.now.label);
+            if (t.correction) {
+              svg.append(
+                svgEl('line', {
+                  x1: 0,
+                  y1: t.correction.y,
+                  x2: 512,
+                  y2: t.correction.y,
+                  stroke: '#9598A1',
+                  'stroke-width': 3,
+                  'stroke-dasharray': '10 8',
+                }),
+              );
+              const c = el('p', 'dd-muted', t.correction.label);
+              c.style.left = '0px';
+              c.style.top = '230px';
+              $('trend').append(c);
+            }
+            svg.append(
+              svgEl('polyline', {
+                points: t.points,
+                fill: 'none',
+                stroke: '#5B9CF6',
+                'stroke-width': 5,
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+              }),
+            );
+            svg.append(svgEl('circle', { cx: t.high.x, cy: t.high.y, r: 10, fill: '#26A69A' }));
+            if (t.low) svg.append(svgEl('circle', { cx: t.low.x, cy: t.low.y, r: 8, fill: '#5B9CF6' }));
+            svg.append(svgEl('circle', { cx: t.now.x, cy: t.now.y, r: 11, fill: '#EF5350' }));
+            const hi = el('p', 'dd-label', t.high.label);
+            hi.style.left = t.high.labelX + 'px';
+            hi.style.top = t.high.labelY + 'px';
+            const now = el('p', 'dd-label now', t.now.label);
+            now.style.left = t.now.labelX + 'px';
+            now.style.top = t.now.labelY + 'px';
+            $('trend').append(hi, now);
+          } else {
+            setText('trend-title', 'Nasdaq trend');
+            $('trend').replaceChildren(el('p', 'empty', 'No chart data right now'));
+          }
+
+          setText('movers-title', v.moversTitle);
+          for (const m of v.movers) {
+            const row = el('div', 'mover');
+            const arrow = svgEl('svg', {
+              class: 'mover-arrow',
+              width: 24,
+              height: 22,
+              viewBox: '0 0 24 22',
+              'aria-hidden': 'true',
+            });
+            arrow.append(
+              svgEl('path', {
+                d: m.tone === 'up' ? 'M12 1 L23 21 H1 Z' : 'M1 1 H23 L12 21 Z',
+                fill: m.tone === 'up' ? '#26A69A' : '#EF5350',
+              }),
+            );
+            row.append(arrow, el('p', 'mover-name', m.name), el('p', 'mover-why ' + m.tone, m.why));
+            $('movers').append(row);
+          }
+
+          v.news.forEach((n, i) => {
+            const item = el('div', 'news-item');
+            const text = el('div', 'news-text');
+            text.append(el('p', 'news-h', n.title), el('p', 'news-p', n.detail));
+            item.append(el('p', 'news-num inter', String(i + 1)), text);
+            $('news').append(item);
+          });
+          if (!v.news.length) $('news').append(el('p', 'empty', 'No headlines right now'));
+          setText('source2', v.source2);
+
+          // Measure only once the fonts are in.
+          await document.fonts.ready;
+          document.querySelectorAll('[data-fit]').forEach(fit);
+          // Drop news items that would run past the card.
+          const box = $('news').closest('.card').getBoundingClientRect();
+          for (const item of [...$('news').children].reverse()) {
+            if (item.getBoundingClientRect().bottom <= box.bottom - 20) break;
+            item.remove();
+          }
+          return true;
+        };
+      })();
+    </script>
+  </body>
+</html>

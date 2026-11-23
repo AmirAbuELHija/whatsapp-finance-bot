@@ -38,9 +38,9 @@ variable "name" {
 }
 
 variable "machine_type" {
-  description = "e2-micro is in Google Cloud's always-free tier (1 per billing account, US regions)."
+  description = "e2-small (2 GB) leaves room for the headless Chromium that draws the \"@bot summary\" picture. e2-micro (1 GB) is free but tight: the bot then falls back to its built-in slides when Chromium can't start."
   type        = string
-  default     = "e2-micro"
+  default     = "e2-small"
 }
 
 variable "boot_disk_gb" {

@@ -39,13 +39,15 @@ function toPng(svg: string, width: number): Uint8Array {
 }
 
 export class StockReportRenderer implements ReportRenderer, SummaryRenderer {
-  summarySlides(snapshot: MarketSnapshot, story: MarketStory, timeZone: string): OutgoingFile[] {
+  summarySlides(snapshot: MarketSnapshot, story: MarketStory, timeZone: string): Promise<OutgoingFile[]> {
     const day = snapshot.takenAt.toISOString().slice(0, 10);
-    return summarySvgs(snapshot, story, timeZone).map((svg, i) => ({
-      fileName: `market-summary-${day}-${i + 1}.png`,
-      mimeType: 'image/png',
-      data: toPng(svg, 1920),
-    }));
+    return Promise.resolve(
+      summarySvgs(snapshot, story, timeZone).map((svg, i) => ({
+        fileName: `market-summary-${day}-${i + 1}.png`,
+        mimeType: 'image/png',
+        data: toPng(svg, 1920),
+      })),
+    );
   }
 
   stockCard(report: StockReport): Promise<OutgoingFile> {

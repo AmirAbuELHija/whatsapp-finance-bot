@@ -23,6 +23,12 @@ import { ChatAgent } from '../services/agent/chat-agent.js';
 import { buildToolRegistry } from '../services/agent/tool-registry.js';
 import { OfficeDocumentBuilder } from '../adapters/documents/office-document-builder.js';
 import { StockReportRenderer } from '../adapters/reports/stock-report-renderer.js';
+import {
+  BrowserSummaryRenderer,
+  FallbackSummaryRenderer,
+  findChromium,
+} from '../adapters/reports/browser-summary-renderer.js';
+import type { SummaryRenderer } from '../core/types.js';
 import { CommandRouter } from '../services/commands/command-router.js';
 import { MarketSummaryService } from '../services/summary/market-summary.js';
 import { ConversationHistory } from '../services/conversation/history.js';
@@ -103,6 +109,17 @@ export function buildRater(config: AppConfig, gemini: GeminiShared, logger?: Log
     : new HeuristicRater();
 }
 
+/** The browser-rendered summary picture when Chromium is available, else (or on failure) the built-in SVG slides. */
+export function summaryRenderer(chromiumPath: string, builtIn: SummaryRenderer, logger?: Logger): SummaryRenderer {
+  if (chromiumPath.toLowerCase() === 'off') return builtIn;
+  const executablePath = findChromium(chromiumPath || undefined);
+  if (!executablePath) {
+    logger?.info('Chromium not found: "@bot summary" uses the built-in slides');
+    return builtIn;
+  }
+  return new FallbackSummaryRenderer(new BrowserSummaryRenderer({ executablePath }), builtIn, logger);
+}
+
 export function createContainer(config: AppConfig, logger: Logger, overrides: ContainerOverrides = {}) {
   const fetchImpl = overrides.fetchImpl;
   const market = new YahooMarketData(
@@ -150,7 +167,7 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
       market,
       news,
       writer: agent,
-      renderer: reports,
+      renderer: summaryRenderer(config.chromiumPath, reports, logger),
       timeZone: config.bot.timezone,
     }),
     logger,

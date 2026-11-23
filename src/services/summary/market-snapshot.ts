@@ -27,6 +27,7 @@ const item = (quote: Quote, label: string): SnapshotItem => ({
   changePct: quote.changePct,
   change: quote.change,
   currency: quote.currency,
+  open: quote.open ?? null,
 });
 
 export async function takeMarketSnapshot(

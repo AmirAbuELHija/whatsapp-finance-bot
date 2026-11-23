@@ -47,7 +47,7 @@ interface ChartMeta {
 interface ChartResult {
   meta?: ChartMeta;
   timestamp?: number[];
-  indicators?: { quote?: { close?: (number | null)[] }[] };
+  indicators?: { quote?: { close?: (number | null)[]; open?: (number | null)[] }[] };
 }
 
 interface ChartResponse {
@@ -94,6 +94,13 @@ function barsOf(result: ChartResult): Bar[] {
   });
 }
 
+/** The open of the latest daily bar (today's open once the market has opened). */
+function todaysOpen(result: ChartResult): number | null {
+  const opens = result.indicators?.quote?.[0]?.open ?? [];
+  const last = opens.at(-1);
+  return typeof last === 'number' && Number.isFinite(last) ? last : null;
+}
+
 /** At most LIMITS.chartPoints evenly spaced bars, always keeping the last one. */
 function downsample(bars: Bar[]): Bar[] {
   const max = LIMITS.chartPoints;
@@ -127,6 +134,7 @@ export class YahooMarketData implements MarketData {
       previousClose: previous != null ? price(previous * factor) : null,
       change: change != null ? price(change * factor) : null,
       changePct: change != null && previous ? round((change / previous) * 100, 2) : null,
+      open: scaled(todaysOpen(result) ?? undefined, factor),
       dayHigh: scaled(meta.regularMarketDayHigh, factor),
       dayLow: scaled(meta.regularMarketDayLow, factor),
       fiftyTwoWeekHigh: scaled(meta.fiftyTwoWeekHigh, factor),

@@ -123,6 +123,8 @@ const EnvSchema = z.object({
   HISTORY_TURNS: positiveNumber(DEFAULTS.historyTurns, { integer: true }),
   PAIRING_NUMBER: text().transform(digitsOnly),
   AUTH_DIR: text(DEFAULTS.authDir),
+  /** Chromium for the "@bot summary" picture. Empty: look in the usual places; "off": use the built-in SVG slides. */
+  CHROMIUM_PATH: text(),
   LOG_LEVEL: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim().toLowerCase() : undefined),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default(DEFAULTS.logLevel),
@@ -174,6 +176,8 @@ export interface AppConfig {
     rateLimitPerMinute: number;
   };
   whatsapp: { authDir: string; pairingNumber: string };
+  /** "" = find Chromium automatically, "off" = never use a browser. */
+  chromiumPath: string;
   logLevel: string;
 }
 
@@ -225,6 +229,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     },
     whatsapp: { authDir: e.AUTH_DIR, pairingNumber: e.PAIRING_NUMBER },
+    chromiumPath: e.CHROMIUM_PATH,
     logLevel: e.LOG_LEVEL,
   };
 }

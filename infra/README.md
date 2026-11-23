@@ -1,6 +1,6 @@
 # Cloud deployment (Google Cloud + Terraform + GitHub Actions)
 
-The bot runs 24/7 on a Google Cloud **e2-micro** VM (always-free tier), built with Terraform and deployed by
+The bot runs 24/7 on a Google Cloud **e2-small** VM (2 GB; about $13/month, or the free e2-micro with `machine_type = "e2-micro"`), built with Terraform and deployed by
 GitHub Actions with keyless authentication. Nothing listens on the internet; secrets never touch Git.
 
 ## Architecture
@@ -15,7 +15,7 @@ GitHub Actions with keyless authentication. Nothing listens on the internet; sec
 │  │  IaC, image)          │             │   ├ applier  SA: terraform apply, main + approval    │
 │  ├ Terraform: plan → PR  │             │   └ deployer SA: push image, set VM metadata         │
 │  │  apply (approval)     │             │                                                      │
-│  └ Deploy (approval):    │ bot-image   │  VM e2-micro, Container-Optimized OS, Shielded VM    │
+│  └ Deploy (approval):    │ bot-image   │  VM e2-small, Container-Optimized OS, Shielded VM    │
 │     build→scan→push→     │──metadata──▶│   ├ deploy watcher: metadata change → restart bot    │
 │     switch→verify→       │             │   ├ whatsapp-bot.service: read-only, non-root,       │
 │     auto-rollback        │             │   │   no capabilities, memory/pid limits             │
@@ -38,7 +38,8 @@ GitHub Actions with keyless authentication. Nothing listens on the internet; sec
 
 | Item | Cost |
 |---|---|
-| e2-micro VM + 30 GB standard disk (us-central1 / us-west1 / us-east1) | free tier |
+| e2-small VM (2 GB, room for the headless Chromium that draws `@bot summary`) | ~$13 / month (e2-micro: free tier, the summary then falls back to the built-in slides) |
+| 30 GB standard disk (us-central1 / us-west1 / us-east1) | free tier |
 | Public IPv4 for outbound traffic | a few dollars a month (covered by the $300 credit) |
 | Artifact Registry (≤0.5 GB, old images auto-deleted), Secret Manager, Logging, bucket | free tier / cents |
 
