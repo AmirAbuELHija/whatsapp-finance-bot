@@ -31,6 +31,7 @@ import {
 import type { SummaryRenderer } from '../core/types.js';
 import { CommandRouter } from '../services/commands/command-router.js';
 import { MarketSummaryService } from '../services/summary/market-summary.js';
+import { MassiveEndOfDay } from '../adapters/market/massive-eod.js';
 import { ConversationHistory } from '../services/conversation/history.js';
 import { MessageHandler } from '../services/messaging/message-handler.js';
 import { RateLimiter } from '../services/security/rate-limiter.js';
@@ -168,6 +169,12 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
       news,
       writer: agent,
       renderer: summaryRenderer(config.chromiumPath, reports, logger),
+      endOfDay: config.massiveApiKey
+        ? new MassiveEndOfDay({
+            apiKey: config.massiveApiKey,
+            http: new HttpClient({ timeoutMs: 20_000, ...(fetchImpl ? { fetchImpl } : {}) }),
+          })
+        : undefined,
       timeZone: config.bot.timezone,
     }),
     logger,

@@ -95,6 +95,8 @@ const EnvSchema = z.object({
   LLM_REASONING_EFFORT: text(),
   LLM_MAX_TOOL_STEPS: positiveNumber(DEFAULTS.maxToolSteps, { integer: true }),
   GEMINI_API_KEY: text(),
+  /** Massive (formerly Polygon.io) key: last-close backup for "@bot summary" when Yahoo is unreachable. */
+  MASSIVE_API_KEY: text(),
   GEMINI_MODEL: text(),
   GEMINI_EXCLUDE_MODELS: list,
   GEMINI_FREE_TIER: flag(true),
@@ -178,6 +180,8 @@ export interface AppConfig {
   whatsapp: { authDir: string; pairingNumber: string };
   /** "" = find Chromium automatically, "off" = never use a browser. */
   chromiumPath: string;
+  /** "" = no end-of-day backup for the summary. */
+  massiveApiKey: string;
   logLevel: string;
 }
 
@@ -230,6 +234,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     whatsapp: { authDir: e.AUTH_DIR, pairingNumber: e.PAIRING_NUMBER },
     chromiumPath: e.CHROMIUM_PATH,
+    massiveApiKey: e.MASSIVE_API_KEY,
     logLevel: e.LOG_LEVEL,
   };
 }

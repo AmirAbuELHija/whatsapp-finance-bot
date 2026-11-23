@@ -1,6 +1,13 @@
 /** Collects the live numbers for the summary slides. Instruments that fail are left out, never invented. */
 import { SUMMARY } from '../../config/reference-data.js';
-import type { MarketData, MarketSnapshot, Quote, SnapshotItem } from '../../core/types.js';
+import type {
+  EndOfDayData,
+  EndOfDaySource,
+  MarketData,
+  MarketSnapshot,
+  Quote,
+  SnapshotItem,
+} from '../../core/types.js';
 
 /** Runs tasks with at most `limit` in flight (be gentle with free data sources). */
 async function pool<T, R>(
@@ -49,7 +56,11 @@ const item = (quote: Quote, label: string): SnapshotItem => ({
 
 export async function takeMarketSnapshot(
   market: MarketData,
-  { watchlist = SUMMARY.watchlist, now = () => new Date() }: { watchlist?: readonly string[]; now?: () => Date } = {},
+  {
+    watchlist = SUMMARY.watchlist,
+    now = () => new Date(),
+    endOfDay,
+  }: { watchlist?: readonly string[]; now?: () => Date; endOfDay?: EndOfDaySource | undefined } = {},
 ): Promise<MarketSnapshot> {
   const labelled = [
     ...SUMMARY.indexes,
@@ -67,7 +78,19 @@ export async function takeMarketSnapshot(
     const quote = quotes[i];
     if (quote?.price != null) bySymbol.set(l.symbol, item(quote, l.label));
   });
-  if (!SUMMARY.indexes.some((l) => bySymbol.has(l.symbol))) throw new NoMarketDataError(errors);
+  // Live quotes mostly failed (Yahoo blocks some cloud servers): use the last close from the backup source.
+  const liveIndexes = SUMMARY.indexes.filter((l) => bySymbol.has(l.symbol)).length;
+  const liveSectors = SUMMARY.sectors.filter((l) => bySymbol.has(l.symbol)).length;
+  if (endOfDay && (liveIndexes < SUMMARY.indexes.length || liveSectors < SUMMARY.sectors.length / 2)) {
+    try {
+      const eod = await endOfDay.endOfDay({ symbols: labelled, indexSymbol: SUMMARY.trend.symbol });
+      if (SUMMARY.indexes.some((l) => eod.items.has(l.symbol))) return fromEndOfDay(eod, now());
+      errors.push('backup source: no index data');
+    } catch (error) {
+      errors.push(`backup source: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (!liveIndexes) throw new NoMarketDataError(errors);
   const pick = (list: readonly { symbol: string }[]) =>
     list.map((l) => bySymbol.get(l.symbol)).filter((x): x is SnapshotItem => x !== undefined);
 
@@ -96,15 +119,48 @@ export async function takeMarketSnapshot(
   };
 }
 
+/** A snapshot built from a previous close (backup source). */
+function fromEndOfDay(eod: EndOfDayData, takenAt: Date): MarketSnapshot {
+  const pick = (list: readonly { symbol: string }[]) =>
+    list.map((l) => eod.items.get(l.symbol)).filter((x): x is SnapshotItem => x !== undefined);
+  const closes = eod.trend.map((p) => p.close);
+  const high = closes.length ? Math.max(...closes) : null;
+  const last = closes.at(-1);
+  return {
+    takenAt,
+    asOf: eod.asOf,
+    source: eod.source,
+    breadth: eod.breadth,
+    moversScope: 'market',
+    indexes: pick(SUMMARY.indexes),
+    vix: eod.items.get(SUMMARY.vix.symbol) ?? null,
+    sectors: pick(SUMMARY.sectors),
+    assets: pick(SUMMARY.assets),
+    movers: eod.marketMovers,
+    trend: eod.trend.length
+      ? {
+          label: SUMMARY.trend.label,
+          points: eod.trend,
+          high,
+          fromHighPct: high && last != null ? Math.round((last / high - 1) * 10_000) / 100 : null,
+        }
+      : null,
+  };
+}
+
 /** The numbers the AI may use, as compact text (so it can't get them wrong). */
 export function snapshotForPrompt(s: MarketSnapshot): string {
   const line = (i: SnapshotItem) =>
     `${i.label} (${i.symbol}): ${i.price ?? '?'}${i.changePct == null ? '' : ` ${i.changePct >= 0 ? '+' : ''}${i.changePct}%`}`;
   return [
+    s.asOf
+      ? `IMPORTANT: these are closing numbers from ${s.asOf} (live data was unavailable). Say "at the close".`
+      : '',
+    s.breadth ? `US stocks that day: ${s.breadth.up} rose, ${s.breadth.down} fell` : '',
     `Indexes: ${s.indexes.map(line).join('; ')}`,
     s.vix ? `VIX: ${line(s.vix)}` : '',
     `Sectors: ${s.sectors.map(line).join('; ')}`,
-    `Biggest moves (watchlist): ${s.movers.slice(0, 8).map(line).join('; ')}`,
+    `Biggest moves (${s.moversScope === 'market' ? 'liquid US stocks' : 'watchlist'}): ${s.movers.slice(0, 8).map(line).join('; ')}`,
     `Other assets: ${s.assets.map(line).join('; ')}`,
     s.trend?.fromHighPct != null ? `Nasdaq vs 52-week high: ${s.trend.fromHighPct}%` : '',
   ]
