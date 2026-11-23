@@ -256,24 +256,31 @@ export interface MarketSnapshot {
   moversScope?: 'watchlist' | 'market';
 }
 
-/** End-of-day numbers from a backup source when live quotes are unavailable. */
-export interface EndOfDayData {
-  /** The trading day the numbers are from (YYYY-MM-DD). */
-  asOf: string;
+/** Numbers from a backup source when Yahoo's live quotes are unavailable. */
+export interface BackupMarketData {
+  /** null = live prices; otherwise the trading day of a previous close (YYYY-MM-DD). */
+  asOf: string | null;
   /** By requested (Yahoo) symbol; labels may name a stand-in such as "S&P 500 (SPY)". */
   items: Map<string, SnapshotItem>;
+  /** How many US stocks rose / fell, when the source knows. */
   breadth: { up: number; down: number } | null;
-  /** The biggest moves among liquid US stocks that day. */
-  marketMovers: SnapshotItem[];
+  /** The biggest moves across the market (null = use the watchlist). */
+  marketMovers: SnapshotItem[] | null;
+  /** Daily closes for the trend chart, and what they are of (e.g. "Nasdaq (QQQ)"). */
   trend: PricePoint[];
+  trendLabel?: string;
   source: string;
 }
 
-export interface EndOfDaySource {
-  endOfDay(request: {
-    symbols: readonly { symbol: string; label: string }[];
-    indexSymbol: string;
-  }): Promise<EndOfDayData>;
+export interface BackupMarketRequest {
+  symbols: readonly { symbol: string; label: string }[];
+  indexSymbol: string;
+}
+
+/** A second (or third) source of market numbers for "@bot summary". Tried in order until one has the indexes. */
+export interface BackupMarketSource {
+  readonly name: string;
+  fetchBackup(request: BackupMarketRequest): Promise<BackupMarketData>;
 }
 
 /** The words on the summary slides, written by the AI from the snapshot and the latest headlines. */

@@ -1,8 +1,8 @@
 /** Collects the live numbers for the summary slides. Instruments that fail are left out, never invented. */
 import { SUMMARY } from '../../config/reference-data.js';
 import type {
-  EndOfDayData,
-  EndOfDaySource,
+  BackupMarketData,
+  BackupMarketSource,
   MarketData,
   MarketSnapshot,
   Quote,
@@ -59,35 +59,40 @@ export async function takeMarketSnapshot(
   {
     watchlist = SUMMARY.watchlist,
     now = () => new Date(),
-    endOfDay,
-  }: { watchlist?: readonly string[]; now?: () => Date; endOfDay?: EndOfDaySource | undefined } = {},
+    backups = [],
+  }: { watchlist?: readonly string[]; now?: () => Date; backups?: readonly BackupMarketSource[] } = {},
 ): Promise<MarketSnapshot> {
-  const labelled = [
-    ...SUMMARY.indexes,
-    SUMMARY.vix,
-    ...SUMMARY.sectors,
-    ...SUMMARY.assets,
-    ...watchlist.map((symbol) => ({ symbol, label: symbol })),
-  ];
-  const [{ results: quotes, errors }, trendHistory] = await Promise.all([
-    pool(labelled, SUMMARY.concurrency, (l) => market.getQuote(l.symbol)),
+  const first = [...SUMMARY.indexes, SUMMARY.vix];
+  const rest = [...SUMMARY.sectors, ...SUMMARY.assets, ...watchlist.map((symbol) => ({ symbol, label: symbol }))];
+  const labelled = [...first, ...rest];
+  // Indexes first: if Yahoo can't give even those, it's blocked, so don't spend ~20 s retrying 35 more symbols.
+  const [head, trendHistory] = await Promise.all([
+    pool(first, SUMMARY.concurrency, (l) => market.getQuote(l.symbol)),
     market.getHistory(SUMMARY.trend.symbol, SUMMARY.trend.range).catch(() => null),
   ]);
+  const yahooUp = head.results.slice(0, SUMMARY.indexes.length).some((q) => q?.price != null);
+  const tail = yahooUp
+    ? await pool(rest, SUMMARY.concurrency, (l) => market.getQuote(l.symbol))
+    : { results: rest.map(() => null), errors: [] as string[] };
+  const quotes = [...head.results, ...tail.results];
+  const errors = [...head.errors, ...tail.errors];
   const bySymbol = new Map<string, SnapshotItem>();
   labelled.forEach((l, i) => {
     const quote = quotes[i];
     if (quote?.price != null) bySymbol.set(l.symbol, item(quote, l.label));
   });
-  // Live quotes mostly failed (Yahoo blocks some cloud servers): use the last close from the backup source.
+  // Live quotes mostly failed (Yahoo blocks some cloud servers): try the backups in order.
   const liveIndexes = SUMMARY.indexes.filter((l) => bySymbol.has(l.symbol)).length;
   const liveSectors = SUMMARY.sectors.filter((l) => bySymbol.has(l.symbol)).length;
-  if (endOfDay && (liveIndexes < SUMMARY.indexes.length || liveSectors < SUMMARY.sectors.length / 2)) {
-    try {
-      const eod = await endOfDay.endOfDay({ symbols: labelled, indexSymbol: SUMMARY.trend.symbol });
-      if (SUMMARY.indexes.some((l) => eod.items.has(l.symbol))) return fromEndOfDay(eod, now());
-      errors.push('backup source: no index data');
-    } catch (error) {
-      errors.push(`backup source: ${error instanceof Error ? error.message : String(error)}`);
+  if (liveIndexes < SUMMARY.indexes.length || liveSectors < SUMMARY.sectors.length / 2) {
+    for (const backup of backups) {
+      try {
+        const data = await backup.fetchBackup({ symbols: labelled, indexSymbol: SUMMARY.trend.symbol });
+        if (SUMMARY.indexes.some((l) => data.items.has(l.symbol))) return fromBackup(data, watchlist, now());
+        errors.push(`${backup.name}: no index data`);
+      } catch (error) {
+        errors.push(`${backup.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
   if (!liveIndexes) throw new NoMarketDataError(errors);
@@ -119,28 +124,31 @@ export async function takeMarketSnapshot(
   };
 }
 
-/** A snapshot built from a previous close (backup source). */
-function fromEndOfDay(eod: EndOfDayData, takenAt: Date): MarketSnapshot {
+/** A snapshot built from a backup source (live ETFs, or a previous close). */
+function fromBackup(data: BackupMarketData, watchlist: readonly string[], takenAt: Date): MarketSnapshot {
   const pick = (list: readonly { symbol: string }[]) =>
-    list.map((l) => eod.items.get(l.symbol)).filter((x): x is SnapshotItem => x !== undefined);
-  const closes = eod.trend.map((p) => p.close);
+    list.map((l) => data.items.get(l.symbol)).filter((x): x is SnapshotItem => x !== undefined);
+  const closes = data.trend.map((p) => p.close);
   const high = closes.length ? Math.max(...closes) : null;
   const last = closes.at(-1);
+  const watchlistMovers = pick(watchlist.map((symbol) => ({ symbol })))
+    .filter((m) => m.changePct != null)
+    .sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0));
   return {
     takenAt,
-    asOf: eod.asOf,
-    source: eod.source,
-    breadth: eod.breadth,
-    moversScope: 'market',
+    asOf: data.asOf,
+    source: data.source,
+    breadth: data.breadth,
+    moversScope: data.marketMovers ? 'market' : 'watchlist',
     indexes: pick(SUMMARY.indexes),
-    vix: eod.items.get(SUMMARY.vix.symbol) ?? null,
+    vix: data.items.get(SUMMARY.vix.symbol) ?? null,
     sectors: pick(SUMMARY.sectors),
     assets: pick(SUMMARY.assets),
-    movers: eod.marketMovers,
-    trend: eod.trend.length
+    movers: data.marketMovers ?? watchlistMovers,
+    trend: data.trend.length
       ? {
-          label: SUMMARY.trend.label,
-          points: eod.trend,
+          label: data.trendLabel ?? SUMMARY.trend.label,
+          points: data.trend,
           high,
           fromHighPct: high && last != null ? Math.round((last / high - 1) * 10_000) / 100 : null,
         }

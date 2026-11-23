@@ -11,7 +11,13 @@
  */
 import { HttpClient } from '../http/http-client.js';
 import { UpstreamError } from '../../core/errors.js';
-import type { EndOfDayData, EndOfDaySource, PricePoint, SnapshotItem } from '../../core/types.js';
+import type {
+  BackupMarketData,
+  BackupMarketRequest,
+  BackupMarketSource,
+  PricePoint,
+  SnapshotItem,
+} from '../../core/types.js';
 
 const BASE = 'https://api.massive.com';
 const DAY_MS = 86_400_000;
@@ -80,7 +86,8 @@ export interface MassiveOptions {
   now?: () => number;
 }
 
-export class MassiveEndOfDay implements EndOfDaySource {
+export class MassiveEndOfDay implements BackupMarketSource {
+  readonly name = 'Massive';
   private readonly http: HttpClient;
   private readonly limiter: RateLimiter;
   private readonly now: () => number;
@@ -94,10 +101,7 @@ export class MassiveEndOfDay implements EndOfDaySource {
     this.now = options.now ?? Date.now;
   }
 
-  async endOfDay(request: {
-    symbols: readonly { symbol: string; label: string }[];
-    indexSymbol: string;
-  }): Promise<EndOfDayData> {
+  async fetchBackup(request: BackupMarketRequest): Promise<BackupMarketData> {
     const bars = await this.nasdaqBars();
     // The newest index bar can appear before the all-stocks file for that day is ready: then use the day before.
     let end = bars.length;

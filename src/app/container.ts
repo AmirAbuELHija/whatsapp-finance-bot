@@ -28,10 +28,11 @@ import {
   FallbackSummaryRenderer,
   findChromium,
 } from '../adapters/reports/browser-summary-renderer.js';
-import type { SummaryRenderer } from '../core/types.js';
+import type { BackupMarketSource, SummaryRenderer } from '../core/types.js';
 import { CommandRouter } from '../services/commands/command-router.js';
 import { MarketSummaryService } from '../services/summary/market-summary.js';
 import { MassiveEndOfDay } from '../adapters/market/massive-eod.js';
+import { AlpacaLiveData } from '../adapters/market/alpaca-live.js';
 import { ConversationHistory } from '../services/conversation/history.js';
 import { MessageHandler } from '../services/messaging/message-handler.js';
 import { RateLimiter } from '../services/security/rate-limiter.js';
@@ -110,6 +111,24 @@ export function buildRater(config: AppConfig, gemini: GeminiShared, logger?: Log
     : new HeuristicRater();
 }
 
+/** Where "@bot summary" gets its numbers when Yahoo fails: Alpaca (live ETFs), then Massive (last close). */
+export function marketBackups(config: AppConfig, fetchImpl?: FetchLike): BackupMarketSource[] {
+  const http = () => new HttpClient({ timeoutMs: 20_000, ...(fetchImpl ? { fetchImpl } : {}) });
+  const backups: BackupMarketSource[] = [];
+  if (config.alpaca.keyId && config.alpaca.secretKey) {
+    backups.push(
+      new AlpacaLiveData({
+        keyId: config.alpaca.keyId,
+        secretKey: config.alpaca.secretKey,
+        feed: config.alpaca.feed,
+        http: http(),
+      }),
+    );
+  }
+  if (config.massiveApiKey) backups.push(new MassiveEndOfDay({ apiKey: config.massiveApiKey, http: http() }));
+  return backups;
+}
+
 /** The browser-rendered summary picture when Chromium is available, else (or on failure) the built-in SVG slides. */
 export function summaryRenderer(chromiumPath: string, builtIn: SummaryRenderer, logger?: Logger): SummaryRenderer {
   if (chromiumPath.toLowerCase() === 'off') return builtIn;
@@ -169,12 +188,7 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
       news,
       writer: agent,
       renderer: summaryRenderer(config.chromiumPath, reports, logger),
-      endOfDay: config.massiveApiKey
-        ? new MassiveEndOfDay({
-            apiKey: config.massiveApiKey,
-            http: new HttpClient({ timeoutMs: 20_000, ...(fetchImpl ? { fetchImpl } : {}) }),
-          })
-        : undefined,
+      backups: marketBackups(config, fetchImpl),
       timeZone: config.bot.timezone,
     }),
     logger,
