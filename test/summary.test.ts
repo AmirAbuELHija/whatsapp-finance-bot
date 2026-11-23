@@ -299,3 +299,14 @@ test('if the browser fails, the built-in slides are sent instead', async () => {
   assert.equal(summaryRenderer('off', builtIn), builtIn);
   assert.equal(summaryRenderer('/nope/chromium', builtIn), builtIn);
 });
+
+test('no index quotes at all → the error says why (so the log shows it)', async () => {
+  const blocked: MarketData = {
+    ...market,
+    getQuote: () => Promise.reject(new Error('HTTP 429 from query1.finance.yahoo.com')),
+  };
+  await assert.rejects(
+    takeMarketSnapshot(blocked),
+    /No market data right now \(HTTP 429 from query1\.finance\.yahoo\.com ×\d+\)/,
+  );
+});

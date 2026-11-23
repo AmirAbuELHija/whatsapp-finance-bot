@@ -114,7 +114,11 @@ export function isHistoryRange(value: string): value is HistoryRange {
 }
 
 export class YahooMarketData implements MarketData {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    /** Waits between retries (replaceable in tests). */
+    private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  ) {}
 
   async getQuote(symbol: string): Promise<Quote> {
     const sym = normalizeSymbol(symbol);
@@ -228,19 +232,30 @@ export class YahooMarketData implements MarketData {
   }
 
   private async chart(sym: string, range: string, interval: string): Promise<ChartResult> {
-    let data: ChartResponse;
-    try {
-      data = await this.http.getJson<ChartResponse>(
-        `${ENDPOINTS.yahooChart}${encodeURIComponent(sym)}?range=${range}&interval=${interval}`,
-      );
-    } catch (error) {
-      if (error instanceof UpstreamError && error.status === 404) {
-        throw new UserInputError(
-          `Unknown symbol ${sym}. Tel Aviv stocks end in .TA (e.g. TEVA.TA), crypto like BTC-USD`,
-        );
+    const path = `${encodeURIComponent(sym)}?range=${range}&interval=${interval}`;
+    // Yahoo rate-limits cloud servers (HTTP 429) when many quotes are asked at once: wait a moment and try the
+    // other host. 404 = unknown symbol, never retried.
+    const hosts = [ENDPOINTS.yahooChart, ENDPOINTS.yahooChartBackup, ENDPOINTS.yahooChart];
+    let data: ChartResponse | undefined;
+    let lastError: unknown;
+    for (const [attempt, host] of hosts.entries()) {
+      if (attempt > 0) await this.sleep(400 * attempt + Math.floor(Math.random() * 300));
+      try {
+        data = await this.http.getJson<ChartResponse>(`${host}${path}`);
+        break;
+      } catch (error) {
+        if (error instanceof UpstreamError && error.status === 404) {
+          throw new UserInputError(
+            `Unknown symbol ${sym}. Tel Aviv stocks end in .TA (e.g. TEVA.TA), crypto like BTC-USD`,
+          );
+        }
+        const retryable =
+          !(error instanceof UpstreamError) || error.status == null || error.status === 429 || error.status >= 500;
+        if (!retryable) throw error;
+        lastError = error;
       }
-      throw error;
     }
+    if (!data) throw lastError instanceof Error ? lastError : new Error(`No data for ${sym}`);
     const result = data.chart?.result?.[0];
     if (!result?.meta) throw new UserInputError(data.chart?.error?.description ?? `No data for ${sym}`);
     return result;

@@ -5,6 +5,8 @@
 
 export const ENDPOINTS = {
   yahooChart: 'https://query1.finance.yahoo.com/v8/finance/chart/',
+  /** Same API on another host: used when query1 is rate-limiting or down. */
+  yahooChartBackup: 'https://query2.finance.yahoo.com/v8/finance/chart/',
   yahooSearch: 'https://query1.finance.yahoo.com/v1/finance/search',
   frankfurterLatest: 'https://api.frankfurter.dev/v1/latest',
   googleNewsRss: 'https://news.google.com/rss/search',
