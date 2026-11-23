@@ -97,6 +97,11 @@ const EnvSchema = z.object({
   GEMINI_API_KEY: text(),
   /** Massive (formerly Polygon.io) key: last-close backup for "@bot summary" when Yahoo is unreachable. */
   MASSIVE_API_KEY: text(),
+  /** Alpaca market data keys (free plan works): live backup for "@bot summary" when Yahoo is unreachable. */
+  ALPACA_KEY_ID: text(),
+  ALPACA_SECRET_KEY: text(),
+  /** "iex" (free plan) or "sip" (paid, all US exchanges). */
+  ALPACA_FEED: text('iex').transform((v) => v.toLowerCase()),
   GEMINI_MODEL: text(),
   GEMINI_EXCLUDE_MODELS: list,
   GEMINI_FREE_TIER: flag(true),
@@ -182,6 +187,7 @@ export interface AppConfig {
   chromiumPath: string;
   /** "" = no end-of-day backup for the summary. */
   massiveApiKey: string;
+  alpaca: { keyId: string; secretKey: string; feed: string };
   logLevel: string;
 }
 
@@ -235,6 +241,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     whatsapp: { authDir: e.AUTH_DIR, pairingNumber: e.PAIRING_NUMBER },
     chromiumPath: e.CHROMIUM_PATH,
     massiveApiKey: e.MASSIVE_API_KEY,
+    alpaca: { keyId: e.ALPACA_KEY_ID, secretKey: e.ALPACA_SECRET_KEY, feed: e.ALPACA_FEED },
     logLevel: e.LOG_LEVEL,
   };
 }

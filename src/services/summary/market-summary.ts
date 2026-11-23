@@ -10,7 +10,7 @@ import type {
   MarketStory,
   NewsItem,
   NewsSource,
-  EndOfDaySource,
+  BackupMarketSource,
   OutgoingFile,
   SummaryRenderer,
 } from '../../core/types.js';
@@ -31,8 +31,8 @@ export interface MarketSummaryOptions {
   writer: StoryWriter;
   renderer: SummaryRenderer;
   timeZone: string;
-  /** Last-close backup when live quotes fail (Massive free key). */
-  endOfDay?: EndOfDaySource | undefined;
+  /** Tried in order when Yahoo fails: e.g. Alpaca (live ETFs), then Massive (last close). */
+  backups?: readonly BackupMarketSource[];
   now?: () => number;
 }
 
@@ -49,7 +49,7 @@ export class MarketSummaryService {
     const { market, news, writer, renderer, timeZone, now = Date.now } = this.options;
 
     const [snapshot, headlines] = await Promise.all([
-      takeMarketSnapshot(market, { now: () => new Date(now()), endOfDay: this.options.endOfDay }),
+      takeMarketSnapshot(market, { now: () => new Date(now()), backups: this.options.backups ?? [] }),
       news.getNews('', { limit: LIMITS.summaryHeadlines }).catch(() => ({ topic: '', items: [] as NewsItem[] })),
     ]);
     if (!snapshot.indexes.length) throw new Error('No market data right now');

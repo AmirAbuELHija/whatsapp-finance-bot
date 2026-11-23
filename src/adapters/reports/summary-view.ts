@@ -77,7 +77,11 @@ function assetValue(item: SnapshotItem): string {
 }
 
 function shortName(label: string): string {
-  return label.replace(' Composite', '').replace('Dow Jones', 'Dow');
+  // "Nasdaq 100 (QQQ)" → "Nasdaq 100": the cards already say which fund stands in.
+  return label
+    .replace(' Composite', '')
+    .replace('Dow Jones', 'Dow')
+    .replace(/\s*\([^)]*\)$/, '');
 }
 
 const dateFormat = (timeZone: string, options: Intl.DateTimeFormatOptions) =>
@@ -186,7 +190,7 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
   const maxIndexMove = Math.max(3, ...s.indexes.map((i) => Math.abs(i.changePct ?? 0)));
   const indexes = s.indexes.map((i) => ({
     name:
-      i.symbol === '^DJI' && i.change != null && !s.asOf
+      i.symbol === '^DJI' && i.change != null && !s.asOf && !i.label.includes('(')
         ? `${i.label} · ${i.change < 0 ? 'down' : 'up'} ${fmtNum(Math.abs(i.change), 0)} pts`
         : i.label,
     value: fmtNum(i.price),

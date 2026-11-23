@@ -66,7 +66,7 @@ const request = {
 
 test('Massive: 5 calls give indexes (SPY/DIA stand-ins), sectors, assets, breadth and market movers; key only in a header', async () => {
   const api = massiveApi();
-  const eod = await source(api).endOfDay(request);
+  const eod = await source(api).fetchBackup(request);
   assert.equal(api.calls.length, 5);
   for (const c of api.calls) {
     assert.doesNotMatch(c.url, /secret-key|apiKey/);
@@ -80,27 +80,28 @@ test('Massive: 5 calls give indexes (SPY/DIA stand-ins), sectors, assets, breadt
   assert.equal(eod.items.get('BTC-USD')?.changePct, 10);
   assert.equal(eod.items.has('^VIX'), false);
   assert.deepEqual(eod.breadth, { up: 4, down: 2 });
-  assert.equal(eod.marketMovers[0]?.symbol, 'NVDA');
-  assert.ok(!eod.marketMovers.some((m) => m.symbol === 'TINY' || m.symbol === 'USO')); // too small to count
+  const movers = eod.marketMovers ?? [];
+  assert.equal(movers[0]?.symbol, 'NVDA');
+  assert.ok(!movers.some((m) => m.symbol === 'TINY' || m.symbol === 'USO')); // too small to count
   assert.equal(eod.trend.length, 4);
 
   // Closed days are cached: asking again costs nothing.
   const repeat = massiveApi();
   const one = source(repeat);
-  await one.endOfDay(request);
-  await one.endOfDay(request);
+  await one.fetchBackup(request);
+  await one.fetchBackup(request);
   assert.equal(repeat.calls.length, 5);
 });
 
 test("Massive: the newest day's file not ready yet → uses the day before", async () => {
-  const eod = await source(massiveApi({ newestReady: false })).endOfDay(request);
+  const eod = await source(massiveApi({ newestReady: false })).fetchBackup(request);
   assert.equal(eod.asOf, '2026-11-20');
   assert.equal(eod.trend.at(-1)?.date, '2026-11-20');
 });
 
 test('Massive: a refused key says what to check', async () => {
   const api = fakeFetch(() => response(403, { status: 'NOT_AUTHORIZED' }));
-  await assert.rejects(source(api).endOfDay(request), /check MASSIVE_API_KEY/);
+  await assert.rejects(source(api).fetchBackup(request), /check MASSIVE_API_KEY/);
 });
 
 test('rate limiter: the 6th call in a minute waits for the window', async () => {
@@ -127,7 +128,7 @@ test('Yahoo blocked → the summary uses the last close from Massive, clearly la
     getHistory: () => Promise.reject(new Error('HTTP 429')),
   };
   const snapshot = await takeMarketSnapshot(blocked, {
-    endOfDay: source(massiveApi()),
+    backups: [source(massiveApi())],
     now: () => new Date(NOW),
   });
   assert.equal(snapshot.asOf, '2026-11-21');
