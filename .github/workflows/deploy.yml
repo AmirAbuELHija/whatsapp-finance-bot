@@ -51,8 +51,14 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "image=${INPUT_IMAGE:-build}" >> "$GITHUB_OUTPUT"
           elif [ -s image.txt ]; then
-            echo "image=$(cat image.txt)" >> "$GITHUB_OUTPUT"
-            echo "Deploying $(cat image.txt)"
+            image="$(cat image.txt)"
+            # Only an image from our own registry, pinned by digest, may reach the VM.
+            case "$image" in
+              "${IMAGE_REPO}"@sha256:*) ;;
+              *) echo "::error::Refusing to deploy '$image': not ${IMAGE_REPO}@sha256:…"; exit 1 ;;
+            esac
+            echo "image=${image}" >> "$GITHUB_OUTPUT"
+            echo "Deploying ${image}"
           else
             echo "::notice::The bot's code didn't change in this merge; nothing to deploy."
           fi
@@ -104,7 +110,12 @@ jobs:
           gcloud auth configure-docker "${IMAGE_REPO%%/*}" --quiet
           docker push "$tag"
           # Deploy by digest: exactly the bytes that were scanned.
-          echo "image=$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")" >> "$GITHUB_OUTPUT"
+          digest="$(docker inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' "$tag" | grep -m1 "^${IMAGE_REPO}@sha256:" || true)"
+          if [ -z "$digest" ]; then
+            echo "::error::No registry digest for $tag after the push"
+            exit 1
+          fi
+          echo "image=${digest}" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy to the VM
