@@ -56,7 +56,10 @@ export class MarketSummaryService {
       items: headlines.items,
       language,
     });
-    const result = { text: summaryText(snapshot, story), files: renderer.summarySlides(snapshot, story, timeZone) };
+    const result = {
+      text: summaryText(snapshot, story),
+      files: await renderer.summarySlides(snapshot, story, timeZone),
+    };
     this.cache.set(language, result);
     return result;
   }

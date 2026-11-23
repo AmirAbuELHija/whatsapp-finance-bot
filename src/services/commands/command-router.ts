@@ -223,6 +223,7 @@ export class CommandRouter {
     }
     const query = topicWords.join(' ');
 
+    let slidesFailed = false;
     // No topic: the full market dashboard (two slides). A topic, or any failure: the text briefing.
     if (!query && dashboard && ctx.files) {
       try {
@@ -231,11 +232,13 @@ export class CommandRouter {
         return built.text;
       } catch (error) {
         this.options.logger?.warn({ error: messageOf(error) }, 'summary slides failed, sending the text summary');
+        slidesFailed = true;
       }
     }
     const key = `${query.toLowerCase()}|${language}`;
+    const note = slidesFailed ? "⚠️ Couldn't draw the summary slides right now, here's the text version.\n\n" : '';
     const cached = this.summaryCache.get(key);
-    if (cached) return cached;
+    if (cached) return note + cached;
 
     const result = await news.getNews(query, { limit: LIMITS.summaryHeadlines });
     if (!result.items.length) return `📰 No recent news found for *${result.topic}*.`;
@@ -245,6 +248,6 @@ export class CommandRouter {
       language,
     });
     this.summaryCache.set(key, text);
-    return text;
+    return note + text;
   }
 }

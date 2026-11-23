@@ -4,7 +4,7 @@ import type { AppConfig } from '../../config/env.js';
 import { DEFAULT_IMAGE_QUESTION, quotedContext } from '../../config/prompts.js';
 import { RecentSet } from '../../core/cache/ttl-cache.js';
 import { AiProviderError, UserInputError, messageOf, statusOf } from '../../core/errors.js';
-import { escapeRegExp } from '../../core/text/language.js';
+import { escapeRegExp, languageFromWord } from '../../core/text/language.js';
 import { parseTrigger, userPart } from '../../core/text/trigger.js';
 import { extractYouTubeId } from '../../core/text/youtube-link.js';
 import { toWhatsApp } from '../../core/text/whatsapp-markdown.js';
@@ -42,8 +42,42 @@ export interface MessageHandlerDeps {
   rateLimiter: RateLimiter;
 }
 
-/** "@bot summary" (and its spellings) works without the slash, optionally followed by a language: "@bot summary he". */
-const SUMMARY_WORD = /^(summary|summery|sum|סיכום|ملخص)(\s+\p{L}+)?$/iu;
+const SUMMARY_WORDS = new Set(['summary', 'summery', 'sumary', 'sum', 'סיכום', 'ملخص']);
+/** Small words people add that don't change the request ("summary please", "סיכום היום"). */
+const FILLER_WORDS = new Set([
+  'please',
+  'pls',
+  'today',
+  'now',
+  'market',
+  'markets',
+  'the',
+  'daily',
+  'בבקשה',
+  'היום',
+  'שוק',
+  'من',
+  'فضلك',
+  'اليوم',
+  'السوق',
+]);
+
+/**
+ * "@bot summary" (any spelling, any case, with "?" or "!", "please", "today" or a language word) → "/summary [lang]".
+ * Anything else, such as "summary of the Fed meeting", is a normal question for the AI.
+ */
+export function asSummaryCommand(prompt: string): string | null {
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  const [first, ...rest] = words;
+  if (!first || !SUMMARY_WORDS.has(first)) return null;
+  const languages = rest.filter((w) => languageFromWord(w));
+  if (rest.some((w) => !FILLER_WORDS.has(w) && !languageFromWord(w))) return null;
+  return ['/summary', ...languages.slice(0, 1)].join(' ');
+}
 
 interface BotRequest {
   prompt: string;
@@ -106,8 +140,9 @@ export class MessageHandler {
       return;
     }
 
-    const isCommand = commands.isCommand(prompt) || SUMMARY_WORD.test(prompt);
-    if (isCommand && !commands.isCommand(prompt)) prompt = `/${prompt.trim()}`;
+    const summaryCommand = commands.isCommand(prompt) ? null : asSummaryCommand(prompt);
+    if (summaryCommand) prompt = summaryCommand;
+    const isCommand = commands.isCommand(prompt);
     const image = isCommand ? null : msg.image;
     logger.info(
       { chatId, sender: rateKey, command: isCommand ? prompt.split(/\s/)[0] : null, image: image?.from ?? null },

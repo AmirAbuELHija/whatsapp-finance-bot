@@ -77,6 +77,8 @@ export interface Quote {
   previousClose: number | null;
   change: number | null;
   changePct: number | null;
+  /** The day's opening price, when the source gives it. */
+  open?: number | null;
   dayHigh: number | null;
   dayLow: number | null;
   fiftyTwoWeekHigh: number | null;
@@ -231,6 +233,8 @@ export interface SnapshotItem {
   changePct: number | null;
   change: number | null;
   currency: string | null;
+  /** The day's open (for the open → close chart). */
+  open?: number | null;
 }
 
 /** Live numbers for "@bot summary", fetched in one go. Missing instruments are simply left out. */
@@ -274,7 +278,7 @@ export interface ReportRenderer {
 
 export interface SummaryRenderer {
   /** The two dashboard slides as PNG images. */
-  summarySlides(snapshot: MarketSnapshot, story: MarketStory, timeZone: string): OutgoingFile[];
+  summarySlides(snapshot: MarketSnapshot, story: MarketStory, timeZone: string): Promise<OutgoingFile[]>;
 }
 
 export interface DocumentBuilder {

@@ -29,18 +29,24 @@ docker rm -f wfb >/dev/null 2>&1 || true
 keep="$(docker image inspect --format '{{.Id}}' "$image")"
 docker images --quiet --no-trunc | sort -u | grep -v "^${keep}$" | xargs -r docker rmi --force >/dev/null 2>&1 || true
 
-log "Starting ${image}"
+# Memory: everything but ~400 MB for the OS (about 1.6 GB on an e2-small; the headless Chromium for the
+# "@bot summary" picture needs ~300 MB while it draws, then exits).
+mem_mb="$(awk '/MemTotal/ {print int($2 / 1024)}' /proc/meminfo)"
+limit_mb=$(( mem_mb > 1000 ? mem_mb - 400 : 600 ))
+
+log "Starting ${image} (memory limit ${limit_mb}m)"
 exec docker run --rm --name wfb \
   --init \
   --read-only \
-  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --tmpfs /tmp:rw,noexec,nosuid,size=256m \
   --cap-drop ALL \
   --security-opt no-new-privileges \
-  --memory 600m --memory-swap 600m \
-  --pids-limit 256 \
+  --memory "${limit_mb}m" --memory-swap "${limit_mb}m" \
+  --pids-limit 512 \
   --log-opt max-size=10m --log-opt max-file=3 \
   -e NODE_ENV=production \
   -e AUTH_DIR=/app/auth \
+  -e HOME=/tmp -e XDG_CONFIG_HOME=/tmp/.config -e XDG_CACHE_HOME=/tmp/.cache \
   -e ENV_FILE=/run/secrets/bot.env \
   -e BOT_IMAGE="$image" \
   -v "${RUN_DIR}/bot.env:/run/secrets/bot.env:ro" \
