@@ -194,5 +194,6 @@ export const SUMMARY = {
   ],
   trend: { symbol: '^IXIC', label: 'Nasdaq', range: '6mo' },
   /** Parallel requests to the market-data source. */
-  concurrency: 8,
+  /** Quotes fetched at the same time (Yahoo throttles cloud servers that ask for too many at once). */
+  concurrency: 4,
 } as const;

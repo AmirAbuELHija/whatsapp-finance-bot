@@ -246,6 +246,34 @@ export interface MarketSnapshot {
   movers: SnapshotItem[];
   assets: SnapshotItem[];
   trend: { label: string; points: PricePoint[]; fromHighPct: number | null; high: number | null } | null;
+  /** Set when the numbers are a previous close (backup source), e.g. "2026-11-21". Absent = live. */
+  asOf?: string | null;
+  /** How many US stocks rose / fell (only the end-of-day source knows this). */
+  breadth?: { up: number; down: number } | null;
+  /** Where the numbers came from, for the footer. */
+  source?: string;
+  /** "watchlist" (default) or the biggest moves across the whole market. */
+  moversScope?: 'watchlist' | 'market';
+}
+
+/** End-of-day numbers from a backup source when live quotes are unavailable. */
+export interface EndOfDayData {
+  /** The trading day the numbers are from (YYYY-MM-DD). */
+  asOf: string;
+  /** By requested (Yahoo) symbol; labels may name a stand-in such as "S&P 500 (SPY)". */
+  items: Map<string, SnapshotItem>;
+  breadth: { up: number; down: number } | null;
+  /** The biggest moves among liquid US stocks that day. */
+  marketMovers: SnapshotItem[];
+  trend: PricePoint[];
+  source: string;
+}
+
+export interface EndOfDaySource {
+  endOfDay(request: {
+    symbols: readonly { symbol: string; label: string }[];
+    indexSymbol: string;
+  }): Promise<EndOfDayData>;
 }
 
 /** The words on the summary slides, written by the AI from the snapshot and the latest headlines. */

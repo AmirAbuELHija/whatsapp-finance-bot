@@ -6,7 +6,7 @@
  * Content-Security-Policy in the template), all text goes in as plain text, and Chromium runs only for the
  * render and is closed right after. One render at a time keeps memory in check on a small VM.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Browser } from 'playwright-core';
 import type { MarketSnapshot, MarketStory, OutgoingFile, SummaryRenderer } from '../../core/types.js';
@@ -16,12 +16,26 @@ const ASSETS = fileURLToPath(new URL('../../../assets/', import.meta.url));
 const TEMPLATE = `${ASSETS}templates/market-summary.html`;
 const SLIDES = ['wrap', 'more'] as const;
 
-/** Where Chromium usually is (Debian package, Ubuntu, Google Chrome). */
-const KNOWN_BROWSERS = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+/** Where Chromium usually is: Google Chrome, then the Debian package (the bot's Docker image sets CHROMIUM_PATH). */
+const KNOWN_BROWSERS = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+
+/**
+ * Ubuntu's /usr/bin/chromium is only a launcher for the Snap package, which can't start headless from a service
+ * or a test runner (it hangs until the launch times out). Skip it.
+ */
+export function isSnapLauncher(path: string): boolean {
+  try {
+    if (realpathSync(path).includes('/snap/')) return true;
+    if (statSync(path).size > 64 * 1024) return false; // a real browser binary
+    return readFileSync(path, 'utf8').includes('/snap/');
+  } catch {
+    return false;
+  }
+}
 
 export function findChromium(configured?: string): string | null {
   if (configured) return existsSync(configured) ? configured : null;
-  return KNOWN_BROWSERS.find((p) => existsSync(p)) ?? null;
+  return KNOWN_BROWSERS.find((p) => existsSync(p) && !isSnapLauncher(p)) ?? null;
 }
 
 export interface BrowserSummaryOptions {

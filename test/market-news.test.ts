@@ -13,7 +13,7 @@ const day = (iso: string) => Date.parse(`${iso}T14:30:00Z`) / 1000;
 const market = (route: Parameters<typeof fakeFetch>[0]) => {
   const f = fakeFetch(route);
   return {
-    market: new YahooMarketData(new HttpClient({ fetchImpl: f.fetchImpl, cacheTtlMs: 60_000 })),
+    market: new YahooMarketData(new HttpClient({ fetchImpl: f.fetchImpl, cacheTtlMs: 60_000 }), async () => {}),
     calls: f.calls,
   };
 };
@@ -204,4 +204,29 @@ test('formatNews renders a WhatsApp list', () => {
   );
   assert.equal(out, '📰 *AAPL*\n\n1. *Apple up*\n_Reuters · 3h ago_\nhttps://x.y/1\n\n_via Yahoo Finance_');
   assert.match(formatNews({ topic: 'XYZ', source: 'Google News', items: [] }), /No recent news/);
+});
+
+test('quote: Yahoo rate limit (429) → waits and retries on the other host; 404 is never retried', async () => {
+  let n = 0;
+  const { market: m, calls } = market(() => {
+    n += 1;
+    if (n === 1) return response(429, 'Too Many Requests');
+    return chart({
+      meta: { currency: 'USD', regularMarketPrice: 5, previousClose: 4 },
+      indicators: { quote: [{ open: [4.5] }] },
+    });
+  });
+  const q = await m.getQuote('^IXIC');
+  assert.equal(q.price, 5);
+  assert.equal(q.open, 4.5);
+  assert.match(calls[0]!.url, /query1\.finance/);
+  assert.match(calls[1]!.url, /query2\.finance/);
+
+  const { market: m404, calls: c404 } = market(() => response(404, {}));
+  await assert.rejects(m404.getQuote('NOPE'), UserInputError);
+  assert.equal(c404.length, 1);
+
+  const { market: blocked, calls: cBlocked } = market(() => response(429, 'Too Many Requests'));
+  await assert.rejects(blocked.getQuote('AAPL'), /HTTP 429 from query1\.finance\.yahoo\.com/);
+  assert.equal(cBlocked.length, 3);
 });

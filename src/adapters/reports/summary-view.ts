@@ -15,6 +15,7 @@ export interface SummaryView {
   indexes: { name: string; value: string; pct: string; tone: Tone; meterW: number }[];
   breadth: { big: string; caption: string; downDash: number; tone: Tone; label: string } | null;
   barsTitle: string;
+  slopeTitle: string;
   bars: { name: string; pct: string; tone: Tone; w: number }[];
   slope: {
     lines: { color: string; y1: number; y2: number }[];
@@ -170,9 +171,11 @@ function trendOf(trend: MarketSnapshot['trend']): SummaryView['trend'] {
 }
 
 export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: string): SummaryView {
-  const date = dateFormat(timeZone, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(
-    s.takenAt,
-  );
+  const dayFormat = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' } as const;
+  // A previous close (backup source) is shown with its own date, never as "live".
+  const date = s.asOf
+    ? dateFormat('UTC', dayFormat).format(new Date(`${s.asOf}T12:00:00Z`))
+    : dateFormat(timeZone, dayFormat).format(s.takenAt);
   const time = dateFormat(timeZone, { hour: '2-digit', minute: '2-digit', hour12: false }).format(s.takenAt);
   const zone = timeZone.split('/').pop()?.replace(/_/g, ' ') ?? timeZone;
 
@@ -183,7 +186,7 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
   const maxIndexMove = Math.max(3, ...s.indexes.map((i) => Math.abs(i.changePct ?? 0)));
   const indexes = s.indexes.map((i) => ({
     name:
-      i.symbol === '^DJI' && i.change != null
+      i.symbol === '^DJI' && i.change != null && !s.asOf
         ? `${i.label} · ${i.change < 0 ? 'down' : 'up'} ${fmtNum(Math.abs(i.change), 0)} pts`
         : i.label,
     value: fmtNum(i.price),
@@ -198,15 +201,28 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
   const up = sectorMoves.length - down;
   const mostlyDown = down >= up;
   const circumference = 2 * Math.PI * 44;
-  const breadth = sectorMoves.length
-    ? {
-        big: `${mostlyDown ? down : up} of ${sectorMoves.length}`,
-        caption: mostlyDown ? `sectors fell · ${up} rose` : `sectors rose · ${down} fell`,
-        downDash: round1((down / sectorMoves.length) * circumference),
-        tone: (mostlyDown ? 'down' : 'up') as Tone,
-        label: `Donut chart: ${down} of ${sectorMoves.length} sectors fell, ${up} rose`,
-      }
-    : null;
+  const stocksTotal = s.breadth ? s.breadth.up + s.breadth.down : 0;
+  const breadth =
+    s.breadth && stocksTotal
+      ? {
+          big: `${Math.round(((s.breadth.down >= s.breadth.up ? s.breadth.down : s.breadth.up) / stocksTotal) * 100)}%`,
+          caption:
+            s.breadth.down >= s.breadth.up
+              ? `of US stocks fell: ${fmtNum(s.breadth.down, 0)} down, ${fmtNum(s.breadth.up, 0)} up`
+              : `of US stocks rose: ${fmtNum(s.breadth.up, 0)} up, ${fmtNum(s.breadth.down, 0)} down`,
+          downDash: round1((s.breadth.down / stocksTotal) * circumference),
+          tone: (s.breadth.down >= s.breadth.up ? 'down' : 'up') as Tone,
+          label: `Donut chart: ${s.breadth.down} US stocks fell, ${s.breadth.up} rose`,
+        }
+      : sectorMoves.length
+        ? {
+            big: `${mostlyDown ? down : up} of ${sectorMoves.length}`,
+            caption: mostlyDown ? `sectors fell · ${up} rose` : `sectors rose · ${down} fell`,
+            downDash: round1((down / sectorMoves.length) * circumference),
+            tone: (mostlyDown ? 'down' : 'up') as Tone,
+            label: `Donut chart: ${down} of ${sectorMoves.length} sectors fell, ${up} rose`,
+          }
+        : null;
 
   // Biggest moves in the watchlist.
   const moves = s.movers.slice(0, 6);
@@ -250,11 +266,12 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
     tone: toneOf(m.changePct),
   }));
 
-  const stamp = `Live at ${time} ${zone} time, ${date}`;
+  const stamp = s.asOf ? `Close of ${date} (live data unavailable)` : `Live at ${time} ${zone} time, ${date}`;
+  const dataSource = s.source ?? 'Yahoo Finance';
   return {
     title: story.headline,
     accent: story.accent,
-    sub: ['Wall Street wrap', date, story.subtitle].filter(Boolean).join(' · '),
+    sub: [s.asOf ? 'Wall Street close' : 'Wall Street wrap', date, story.subtitle].filter(Boolean).join(' · '),
     date,
     vix:
       s.vix?.price != null
@@ -265,6 +282,7 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
         : null,
     indexes,
     breadth,
+    slopeTitle: s.asOf ? 'Open → close' : 'Open → now',
     barsTitle: losers > moves.length / 2 ? 'Who got hit hardest' : losers === 0 ? 'Biggest gainers' : 'Biggest moves',
     bars,
     slope: slopeOf(s.indexes),
@@ -277,13 +295,13 @@ export function summaryView(s: MarketSnapshot, story: MarketStory, timeZone: str
     },
     assets,
     nextUp: story.nextUp.slice(0, 2),
-    source1: `Data: Yahoo Finance · News: Google News · ${stamp} · Not financial advice`,
+    source1: `Data: ${dataSource} · News: Google News · ${stamp} · Not financial advice`,
     sectors,
     sectorNote: `Day's move of each Select Sector SPDR ETF. ${up === 0 ? 'None' : `${up} of ${sectorMoves.length}`} rose.`,
     trend: trendOf(s.trend),
-    moversTitle: 'Best and worst on the watchlist',
+    moversTitle: s.moversScope === 'market' ? 'Best and worst across US stocks' : 'Best and worst on the watchlist',
     movers,
     news: story.news.slice(0, 6),
-    source2: `Data: Yahoo Finance (sector ETFs, Nasdaq closes, watchlist) · Top news: Google News, summarized by AI · ${stamp} · Not financial advice`,
+    source2: `Data: ${dataSource} (sector ETFs, Nasdaq closes, ${s.moversScope === 'market' ? 'US stocks' : 'watchlist'}) · Top news: Google News, summarized by AI · ${stamp} · Not financial advice`,
   };
 }

@@ -10,6 +10,7 @@ import type {
   MarketStory,
   NewsItem,
   NewsSource,
+  EndOfDaySource,
   OutgoingFile,
   SummaryRenderer,
 } from '../../core/types.js';
@@ -30,6 +31,8 @@ export interface MarketSummaryOptions {
   writer: StoryWriter;
   renderer: SummaryRenderer;
   timeZone: string;
+  /** Last-close backup when live quotes fail (Massive free key). */
+  endOfDay?: EndOfDaySource | undefined;
   now?: () => number;
 }
 
@@ -46,7 +49,7 @@ export class MarketSummaryService {
     const { market, news, writer, renderer, timeZone, now = Date.now } = this.options;
 
     const [snapshot, headlines] = await Promise.all([
-      takeMarketSnapshot(market, { now: () => new Date(now()) }),
+      takeMarketSnapshot(market, { now: () => new Date(now()), endOfDay: this.options.endOfDay }),
       news.getNews('', { limit: LIMITS.summaryHeadlines }).catch(() => ({ topic: '', items: [] as NewsItem[] })),
     ]);
     if (!snapshot.indexes.length) throw new Error('No market data right now');
@@ -72,6 +75,7 @@ export function summaryText(snapshot: MarketSnapshot, story: MarketStory): strin
     .join(' · ');
   return [
     `📊 *${story.headline} ${story.accent}*`.replace(/\s+\*$/, '*'),
+    snapshot.asOf ? `_At the close of ${snapshot.asOf} (live prices unavailable right now)_` : '',
     story.subtitle,
     indexes,
     story.result ? `➡️ ${story.result}` : '',

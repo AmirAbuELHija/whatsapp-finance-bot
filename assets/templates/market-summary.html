@@ -796,7 +796,7 @@
         </div>
 
         <div class="card col col-slope" id="slope-card">
-          <h3 class="col-title inter">Open → now</h3>
+          <h3 class="col-title inter" id="slope-title"></h3>
           <div class="slope" id="slope">
             <svg
               id="slope-svg"
@@ -956,6 +956,7 @@
           } else $('breadth').hidden = true;
 
           setText('bars-title', v.barsTitle);
+          setText('slope-title', v.slopeTitle);
           for (const b of v.bars) {
             const row = el('div', 'bar-row');
             const track = el('div', 'bar-track');

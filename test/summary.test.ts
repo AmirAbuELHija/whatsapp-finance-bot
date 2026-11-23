@@ -14,6 +14,7 @@ import {
   BrowserSummaryRenderer,
   FallbackSummaryRenderer,
   findChromium,
+  isSnapLauncher,
 } from '../src/adapters/reports/browser-summary-renderer.js';
 import { summaryRenderer } from '../src/app/container.js';
 
@@ -298,4 +299,27 @@ test('if the browser fails, the built-in slides are sent instead', async () => {
   const builtIn = new StockReportRenderer();
   assert.equal(summaryRenderer('off', builtIn), builtIn);
   assert.equal(summaryRenderer('/nope/chromium', builtIn), builtIn);
+});
+
+test('no index quotes at all → the error says why (so the log shows it)', async () => {
+  const blocked: MarketData = {
+    ...market,
+    getQuote: () => Promise.reject(new Error('HTTP 429 from query1.finance.yahoo.com')),
+  };
+  await assert.rejects(
+    takeMarketSnapshot(blocked),
+    /No market data right now \(HTTP 429 from query1\.finance\.yahoo\.com ×\d+\)/,
+  );
+});
+
+test("Ubuntu's Snap launcher for Chromium is skipped (it hangs headless)", async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wfb-'));
+  const launcher = path.join(dir, 'chromium');
+  fs.writeFileSync(launcher, '#!/bin/sh\nexec /snap/bin/chromium "$@"\n');
+  assert.equal(isSnapLauncher(launcher), true);
+  const found = findChromium();
+  if (found) assert.equal(isSnapLauncher(found), false);
 });

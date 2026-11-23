@@ -29,22 +29,27 @@ export class HttpClient {
     this.cache = cacheTtlMs > 0 ? new TtlCache(cacheTtlMs, HTTP.maxCacheEntries, now) : null;
   }
 
-  getJson<T>(url: string): Promise<T> {
-    return this.get(url, async (res) => (await res.json()) as T);
+  /** `headers` (e.g. an API key) are sent but never part of the cache key or of error messages. */
+  getJson<T>(url: string, headers?: Record<string, string>): Promise<T> {
+    return this.get(url, async (res) => (await res.json()) as T, headers);
   }
 
   getText(url: string): Promise<string> {
     return this.get(url, (res) => res.text());
   }
 
-  private async get<T>(url: string, read: (res: Response) => Promise<T>): Promise<T> {
+  private async get<T>(url: string, read: (res: Response) => Promise<T>, extra?: Record<string, string>): Promise<T> {
     const cached = this.cache?.get(url);
     if (cached !== undefined) return cached as T;
     const service = new URL(url).host;
     let res: Response;
     try {
       res = await this.fetchImpl(url, {
-        headers: { 'User-Agent': HTTP.userAgent, Accept: 'application/json, text/xml;q=0.9, */*;q=0.8' },
+        headers: {
+          'User-Agent': HTTP.userAgent,
+          Accept: 'application/json, text/xml;q=0.9, */*;q=0.8',
+          ...extra,
+        },
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
