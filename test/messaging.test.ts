@@ -368,6 +368,28 @@ test('commands: usage messages, unknown commands, help options', async () => {
   assert.match(helpText({ youtube: true, dmWithoutTrigger: true }), /summarize https:\/\/youtu\.be[\s\S]*private chat/);
 });
 
+test('/status: uptime, start time, and the deployed image digest', async () => {
+  let now = Date.parse('2026-11-27T10:00:00Z');
+  const deployed = new CommandRouter({
+    market: fakeMarket,
+    history: new ConversationHistory(6),
+    timezone: 'UTC',
+    image: 'europe-docker.pkg.dev/p/bot/bot@sha256:1a2b3c4d5e6f7a8b9c0d',
+    now: () => now,
+  });
+  const ctx = { chatId: 'c' };
+  assert.match(await deployed.run('/status', ctx), /Running for less than a minute/);
+  now += (2 * 60 + 14) * 60_000;
+  const status = await deployed.run('/uptime', ctx);
+  assert.match(status, /Running for 2h 14m \(since 27 Nov 2026, 10:00\)/);
+  assert.match(status, /Version: sha256:1a2b3c4d5e6f$/m);
+  now += 3 * 24 * 60 * 60_000;
+  assert.match(await deployed.run('/version', ctx), /Running for 3d 2h/);
+
+  const local = new CommandRouter({ market: fakeMarket, history: new ConversationHistory(6), timezone: 'UTC' });
+  assert.match(await local.run('/status', ctx), /Version: local build/);
+});
+
 test('WhatsApp transport: replies quote the message and never build link previews', async () => {
   const { BaileysTransport } = await import('../src/adapters/whatsapp/baileys-transport.js');
   const calls: any[] = [];

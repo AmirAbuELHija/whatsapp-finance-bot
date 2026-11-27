@@ -55,6 +55,18 @@ export function ago(iso: string | null | undefined, now: number = Date.now()): s
   return `${Math.round(hours / HOURS_PER_DAY)}d ago`;
 }
 
+/** A length of time for people: "2d 3h", "4h 12m", "7m", "less than a minute". */
+export function duration(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / MINUTE_MS);
+  if (minutes < 1) return 'less than a minute';
+  const days = Math.floor(minutes / (MINUTES_PER_HOUR * HOURS_PER_DAY));
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR) % HOURS_PER_DAY;
+  const mins = minutes % MINUTES_PER_HOUR;
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
 const MULTIPLIERS: Readonly<Record<string, number>> = { '': 1, k: 1e3, m: 1e6, b: 1e9 };
 
 /** Accepts 1500, "1,500", "1.5k", "2m", "7%", "₪300". Returns NaN for anything else. */

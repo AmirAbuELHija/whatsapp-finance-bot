@@ -132,6 +132,8 @@ const EnvSchema = z.object({
   AUTH_DIR: text(DEFAULTS.authDir),
   /** Chromium for the "@bot summary" picture. Empty: look in the usual places; "off": use the built-in SVG slides. */
   CHROMIUM_PATH: text(),
+  /** Set by the server (infra/vm/run-bot.sh): the exact image that is running. Empty when run by hand. */
+  BOT_IMAGE: text(),
   LOG_LEVEL: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim().toLowerCase() : undefined),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default(DEFAULTS.logLevel),
@@ -183,6 +185,8 @@ export interface AppConfig {
     rateLimitPerMinute: number;
   };
   whatsapp: { authDir: string; pairingNumber: string };
+  /** The deployed Docker image ("…@sha256:…"); "" when not run from a deployed image. */
+  image: string;
   /** "" = find Chromium automatically, "off" = never use a browser. */
   chromiumPath: string;
   /** "" = no end-of-day backup for the summary. */
@@ -239,6 +243,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     },
     whatsapp: { authDir: e.AUTH_DIR, pairingNumber: e.PAIRING_NUMBER },
+    image: e.BOT_IMAGE,
     chromiumPath: e.CHROMIUM_PATH,
     massiveApiKey: e.MASSIVE_API_KEY,
     alpaca: { keyId: e.ALPACA_KEY_ID, secretKey: e.ALPACA_SECRET_KEY, feed: e.ALPACA_FEED },

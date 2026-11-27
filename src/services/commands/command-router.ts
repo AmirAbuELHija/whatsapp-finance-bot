@@ -7,7 +7,7 @@ import { DEFAULT_HISTORY_RANGE, HISTORY_RANGES } from '../../config/reference-da
 import { TtlCache } from '../../core/cache/ttl-cache.js';
 import { AiProviderError, UserInputError, messageOf } from '../../core/errors.js';
 import * as calc from '../../core/finance/calculators.js';
-import { num, parseAmount, pct } from '../../core/text/format.js';
+import { duration, num, parseAmount, pct, shortTime } from '../../core/text/format.js';
 import { languageFromWord } from '../../core/text/language.js';
 import type { MarketData, NewsItem, NewsSource, OutgoingFile } from '../../core/types.js';
 import type { ConversationHistory } from '../conversation/history.js';
@@ -44,7 +44,18 @@ export interface CommandRouterOptions {
   summaryLanguage?: string;
   dmWithoutTrigger?: boolean;
   youtubeEnabled?: boolean;
+  /** The deployed Docker image, shown by /status ("" or undefined = not a deployed image). */
+  image?: string | undefined;
+  /** When the bot started (ms); defaults to when the router was created. */
+  startedAt?: number;
   now?: () => number;
+}
+
+/** "registry/…/bot@sha256:1a2b3c4d…" → "sha256:1a2b3c4d5e6f" (enough to tell two deploys apart). */
+function shortImage(image: string | undefined): string {
+  if (!image) return 'local build (not a deployed image)';
+  const digest = /@(sha256:[0-9a-f]{12})/.exec(image)?.[1];
+  return digest ?? image.split('/').pop() ?? image;
 }
 
 const CONNECTOR_WORDS = /^(to|in|into|=|->)$/i;
@@ -66,6 +77,8 @@ export class CommandRouter {
   constructor(private readonly options: CommandRouterOptions) {
     this.summaryCache = new TtlCache(CACHE_TTL_MS.summary, LIMITS.summaryCacheEntries, options.now);
     const { market, history, timezone } = options;
+    const now = options.now ?? Date.now;
+    const startedAt = options.startedAt ?? now();
 
     const handlers: Record<string, Handler> = {
       help: () =>
@@ -171,6 +184,14 @@ export class CommandRouter {
         return '🧹 Context cleared for this chat.';
       },
 
+      status: () =>
+        [
+          '*Bot status* ✅',
+          `Running for ${duration(now() - startedAt)} (since ${shortTime(new Date(startedAt).toISOString(), timezone)})`,
+          `Version: ${shortImage(options.image)}`,
+          `Node ${process.version}`,
+        ].join('\n'),
+
       chatid: (_args, ctx) => `Chat: ${ctx.chatId}\nSender ids: ${ctx.senderIds?.join(', ') || '(you)'}`,
     };
 
@@ -186,6 +207,8 @@ export class CommandRouter {
       summery: 'summary',
       סיכום: 'summary',
       ملخص: 'summary',
+      uptime: 'status',
+      version: 'status',
     };
     for (const [alias, target] of Object.entries(aliases)) {
       const handler = handlers[target];

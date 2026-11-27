@@ -196,6 +196,7 @@ export function createContainer(config: AppConfig, logger: Logger, overrides: Co
     summaryLanguage: config.bot.summaryLanguage,
     dmWithoutTrigger: config.access.dmWithoutTrigger,
     youtubeEnabled: video.enabled,
+    image: config.image,
   });
   const handler = new MessageHandler({
     config,
