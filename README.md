@@ -99,6 +99,7 @@ How it's drawn: `assets/templates/market-summary.html` is the design (edit it to
 | `/loan amount rate% years` | `/loan 800k 4.5 25` |
 | `/goal target rate% years [saved]` | `/goal 100k 6 10 5000` |
 | `/cagr start end years` · `/budget income` | `/cagr 1000 2500 6` · `/budget 12000` |
+| `/status` (`/uptime`, `/version`) | how long the bot has run and which deployed image it is |
 | `/reset` · `/chatid` · `/help` | forget context · show ids for the allowlist · help |
 
 Symbols use Yahoo format (`TEVA.TA`, `BTC-USD`, `^GSPC`); shortcuts like `BTC`, `SPX`, `TA35`, `GOLD`, `USD/ILS` work too.

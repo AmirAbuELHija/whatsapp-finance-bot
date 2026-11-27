@@ -28,7 +28,7 @@ export function helpText({ dmWithoutTrigger = false, youtube = false }: HelpOpti
     lines.push("🔒 In a private chat with me you don't need @bot at all, just send the question or the picture.");
   lines.push(
     '',
-    '_Optional shortcuts:_ /price AAPL · /news il · /summary · /fx 100 USD ILS · /loan 800k 4.5 25 · /reset',
+    '_Optional shortcuts:_ /price AAPL · /news il · /summary · /fx 100 USD ILS · /loan 800k 4.5 25 · /status · /reset',
     '',
     '_Not financial advice. Prices may be delayed._',
   );

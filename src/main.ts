@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   logger.info(
     {
       envFile,
-      image: process.env.BOT_IMAGE,
+      image: config.image || undefined,
       mainAI: app.providers[0]?.name,
       backup: app.providers[1]?.name ?? 'none',
       platform: process.platform,
