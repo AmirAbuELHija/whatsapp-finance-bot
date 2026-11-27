@@ -4,7 +4,8 @@ An AI assistant that lives in WhatsApp. Tag it with **`@bot`** in a group or pri
 
 - **Talks naturally** in any language (Arabic, Hebrew, English…). Reply to its message to continue the conversation.
 - **Two AIs, automatic failover:** Google Gemini and/or Groq (or any OpenAI-compatible API).
-- **Free data sources:** Yahoo Finance, ECB rates, Google News. No paid API keys needed.
+- **Free data sources:** Yahoo Finance, ECB rates, Google News. No paid API keys needed. Optional free Alpaca and Massive keys add live and end-of-day backups for `@bot summary`.
+- **Sends files, not just text:** stock report cards and market summary pictures, PowerPoint slides and Word documents.
 - **Runs anywhere Node 22 runs:** macOS, Linux servers, Windows, Docker.
 
 ```
@@ -120,6 +121,9 @@ All settings live in `.env` (see [`.env.example`](.env.example) for every option
 | `BOT_INSTRUCTIONS` | — | Your own rules for the AI; they override the defaults |
 | `RATE_LIMIT_PER_MINUTE` / `HISTORY_TURNS` | `6` / `6` | Spam protection / conversation memory |
 | `PAIRING_NUMBER` / `AUTH_DIR` | — / `./auth` | Link by code instead of QR / where the login is stored |
+| `ALPACA_KEY_ID` / `ALPACA_SECRET_KEY` / `ALPACA_FEED` | — / — / `iex` | Optional live backup for `@bot summary` when Yahoo is down (free paper account; `sip` needs a paid data plan) |
+| `MASSIVE_API_KEY` | — | Optional last-close backup for `@bot summary` (massive.com, formerly Polygon.io; free plan) |
+| `CHROMIUM_PATH` | auto | Chromium/Chrome that draws the summary pictures; `off` = always use the built-in SVG version |
 | `LOG_LEVEL` / `TIMEZONE` | `info` / `Asia/Jerusalem` | Logging / times in replies |
 
 Technical constants (endpoints, timeouts, cache lifetimes, limits) are in [`src/config/constants.ts`](src/config/constants.ts); ticker aliases, currencies and news feeds in [`src/config/reference-data.ts`](src/config/reference-data.ts); every AI prompt in [`src/config/prompts.ts`](src/config/prompts.ts).
@@ -169,11 +173,15 @@ src/
 │   ├── commands/               Slash commands, formatters, help
 │   ├── messaging/              MessageHandler: trigger → authorize → rate-limit → answer
 │   ├── security/               Allowlist authorization · rate limiter
+│   ├── summary/                Market snapshot (Yahoo → Alpaca → Massive), AI-written story, @bot summary
 │   └── conversation/           Per-chat memory
 └── adapters/                   Talking to the outside world
     ├── whatsapp/               Baileys connection · ChatTransport implementation · message conversion
     ├── llm/                    OpenAI-compatible provider · Gemini (native API, model catalog, router, rater, mapping)
-    ├── market/ news/ youtube/  Yahoo Finance, ECB, Google News, YouTube via Gemini
+    ├── market/                 Yahoo Finance + ECB · Alpaca (live backup) · Massive (end-of-day backup) · symbols
+    ├── news/ youtube/          Google News RSS · YouTube via Gemini
+    ├── reports/                Stock report cards, charts, summary pictures (headless Chromium) and SVG fallback
+    ├── documents/              PowerPoint (.pptx) and Word (.docx) builders
     └── http/                   Shared HTTP client (timeouts, cache, typed errors)
 ```
 
@@ -194,7 +202,17 @@ Dependencies point inward: `adapters` and `services` depend on `core`, never the
 | `npm run build` | Compile to `dist/` |
 | `npm run check -- <youtube link>` | Live health check of keys and Gemini video |
 
-**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on Linux, Windows and macOS: typecheck, lint, format, tests, build, `npm audit` (blocks on high/critical in production dependencies) and a Docker build. Dependabot keeps npm packages, Actions and the Docker base image up to date.
+**CI/CD** (all in [`.github/workflows/`](.github/workflows/)):
+
+| Workflow | When | What it does |
+|---|---|---|
+| `ci.yml` | Every pull request and push to `main` | Typecheck, lint, format, tests and build (Linux, Node 22); `npm audit` (blocks on high/critical in production dependencies); shellcheck on the VM scripts; Docker build + Trivy image scan. On `main`, if the bot's code changed, pushes the scanned image so Deploy ships exactly what CI tested. |
+| `security.yml` | Every pull request, push to `main`, and on a schedule | CodeQL (TypeScript) and Trivy (dependencies, leaked secrets, IaC misconfigurations), reported to the Security tab |
+| `compat.yml` | Weekly | Tests on macOS, Windows and Node 24, instead of on every push |
+| `terraform.yml` | Pull requests and pushes that change `infra/` | Terraform checks and plan on pull requests; apply on `main` |
+| `deploy.yml` | After CI passes on `main` (only when the bot's code changed), or by hand | Deploys the exact image CI built and scanned to Google Cloud; by hand it can roll back to an earlier image (see [`infra/README.md`](infra/README.md)) |
+
+`main` is protected (set up by [`scripts/github-hardening.sh`](scripts/github-hardening.sh)): changes go through a pull request with green checks, squash-merge only, no force-push. Dependabot opens weekly grouped updates for npm packages, Actions, the Docker base image and Terraform providers.
 
 Stack: TypeScript 6 (strict), Node 22, Baileys 7, OpenAI SDK, Zod, Pino, ESLint + typescript-eslint, Prettier.
 
